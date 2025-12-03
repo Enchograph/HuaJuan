@@ -4,6 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Check
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,6 +27,93 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+fun formatTime(date: Date): String {
+    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+    return sdf.format(date)
+}
+
+fun formatConversationTime(date: Date): String {
+    val now = Date()
+    val diff = now.time - date.time
+    val minutes = diff / 60000
+    val hours = diff / 3600000
+    val days = diff / 86400000
+    
+    return when {
+        days > 0 -> "${days}天前"
+        hours > 0 -> "${hours}小时前"
+        minutes > 0 -> "${minutes}分钟前"
+        else -> "刚刚"
+    }
+}
+
+data class Message(
+    val id: Long,
+    val text: String,
+    val isUser: Boolean,
+    val timestamp: Date
+)
+
+data class UserInfo(
+    val username: String = "用户名",
+    val signature: String = "个性签名",
+    val avatar: String = "U"
+)
+
+data class Conversation(
+    val id: Long,
+    val title: String,
+    val lastMessage: String,
+    val timestamp: Date
+)
+
+data class LocalModel(
+    val id: String,
+    val name: String,
+    val size: String,
+    val isDownloaded: Boolean = false,
+    val downloadProgress: Int = 0
+)
+
+data class AppState(
+    val conversations: List<Conversation> = listOf(
+        Conversation(
+            id = 1,
+            title = "历史对话 1",
+            lastMessage = "你好，请介绍一下你能做什么？",
+            timestamp = Date(System.currentTimeMillis() - 3600000) // 1小时前
+        ),
+        Conversation(
+            id = 2,
+            title = "历史对话 2",
+            lastMessage = "如何学习Jetpack Compose？",
+            timestamp = Date(System.currentTimeMillis() - 86400000) // 1天前
+        )
+    ),
+    val currentConversationId: Long? = 1
+)
+
+data class ChatState(
+    val messages: List<Message> = listOf(
+        Message(
+            id = 1,
+            text = "你好！我是花卷AI助手，有什么我可以帮你的吗？",
+            isUser = false,
+            timestamp = Date()
+        ),
+        Message(
+            id = 2,
+            text = "你好，请介绍一下你能做什么？",
+            isUser = true,
+            timestamp = Date(System.currentTimeMillis() - 120000) // 2分钟前
+        )
+    ),
+    val inputText: String = ""
+)
 
 /**
  * 侧边栏导航
@@ -28,12 +122,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun SideDrawer(
     onChatPageSelected: () -> Unit = {},
-    onSettingPageSelected: () -> Unit = {}
+    onSettingPageSelected: () -> Unit = {},
+    conversations: List<Conversation> = emptyList(),
+    drawerWidth: androidx.compose.ui.unit.Dp = 300.dp
 ) {
     val scope = rememberCoroutineScope()
     
     ModalDrawerSheet(
-        modifier = Modifier.width(300.dp),
+        modifier = Modifier.width(drawerWidth),
         drawerContainerColor = MaterialTheme.colorScheme.surface
     ) {
         // 搜索框
@@ -57,7 +153,11 @@ fun SideDrawer(
 
         // 新建对话按钮
         Button(
-            onClick = onChatPageSelected,
+            onClick = {
+                println("新建对话按钮被点击")
+                // 在实际应用中，这里会创建一个新的对话
+                onChatPageSelected()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -74,9 +174,12 @@ fun SideDrawer(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            items(10) { index ->
+            items(conversations) { conversation ->
                 ListItem(
-                    headlineContent = { Text("历史对话 $index") },
+                    headlineContent = { Text(conversation.title) },
+                    supportingContent = { 
+                        Text("${conversation.lastMessage} · ${formatConversationTime(conversation.timestamp)}") 
+                    },
                     leadingContent = {
                         Box(
                             modifier = Modifier
@@ -85,10 +188,13 @@ fun SideDrawer(
                                 .background(Color.Blue.copy(alpha = 0.5f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text((index + 1).toString(), color = Color.White)
+                            Text(conversation.title.take(1), color = Color.White)
                         }
                     },
-                    modifier = Modifier.clickable { onChatPageSelected() }
+                    modifier = Modifier.clickable { 
+                        println("选择了对话: ${conversation.title}")
+                        onChatPageSelected() 
+                    }
                 )
             }
         }
@@ -110,11 +216,17 @@ fun SideDrawer(
                 }
             },
             trailingContent = {
-                IconButton(onClick = onSettingPageSelected) {
+                IconButton(onClick = {
+                    println("点击了设置按钮")
+                    onSettingPageSelected()
+                }) {
                     Icon(Icons.Default.Settings, contentDescription = "设置")
                 }
             },
-            modifier = Modifier.clickable { onSettingPageSelected() }
+            modifier = Modifier.clickable { 
+                println("点击了底部用户栏")
+                onSettingPageSelected() 
+            }
         )
     }
 }
@@ -127,6 +239,7 @@ fun SideDrawer(
 fun ChatScreen(drawerState: DrawerState) {
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
+    var chatState by remember { mutableStateOf(ChatState()) }
     
     Scaffold(
         topBar = {
@@ -150,7 +263,12 @@ fun ChatScreen(drawerState: DrawerState) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* 新建对话 */ }) {
+                    IconButton(onClick = { 
+                        /* 新建对话 */
+                        println("新建对话按钮被点击")
+                        // 清空聊天记录
+                        chatState = ChatState()
+                    }) {
                         Icon(Icons.Default.Create, contentDescription = "新建对话")
                     }
                 }
@@ -159,11 +277,48 @@ fun ChatScreen(drawerState: DrawerState) {
         bottomBar = {
             BottomInputArea(
                 isExpanded = isExpanded,
-                onExpandChange = { isExpanded = it }
+                onExpandChange = { isExpanded = it },
+                inputText = chatState.inputText,
+                onInputTextChanged = { newText -> 
+                    chatState = chatState.copy(inputText = newText)
+                },
+                onSendMessage = { text ->
+                    if (text.isNotBlank()) {
+                        // 创建用户消息
+                        val userMessage = Message(
+                            id = System.currentTimeMillis(),
+                            text = text,
+                            isUser = true,
+                            timestamp = Date()
+                        )
+                        
+                        // 更新聊天状态
+                        chatState = chatState.copy(
+                            messages = chatState.messages + userMessage,
+                            inputText = ""
+                        )
+                        
+                        // 模拟AI回复（实际应该调用AI API）
+                        // 这里使用协程延迟模拟网络请求
+                        scope.launch {
+                            kotlinx.coroutines.delay(1000) // 模拟1秒延迟
+                            val aiMessage = Message(
+                                id = System.currentTimeMillis() + 1,
+                                text = "这是AI的回复：$text",
+                                isUser = false,
+                                timestamp = Date()
+                            )
+                            chatState = chatState.copy(
+                                messages = chatState.messages + userMessage + aiMessage
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { paddingValues ->
         ChatContentArea(
+            messages = chatState.messages,
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
@@ -175,113 +330,137 @@ fun ChatScreen(drawerState: DrawerState) {
  * 聊天内容区域
  */
 @Composable
-fun ChatContentArea(modifier: Modifier = Modifier) {
+fun ChatContentArea(
+    messages: List<Message>,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
     LazyColumn(
         modifier = modifier
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            // AI回复气泡
-            Column {
-                Text(
-                    text = "你好！我是花卷AI助手，有什么我可以帮你的吗？",
-                    color = Color.Black
-                )
-                
-                // 交互按钮
-                Row(
-                    modifier = Modifier
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(
-                        onClick = { /* 点赞 */ },
+        items(messages) { message ->
+            if (!message.isUser) {
+                // AI回复气泡
+                Column {
+                    Text(
+                        text = message.text,
+                        color = Color.Black
+                    )
+                    
+                    // 交互按钮
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, CircleShape)
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Default.ThumbUp,
-                            contentDescription = "点赞",
-                            tint = Color.Blue
-                        )
+                        var isLiked by remember { mutableStateOf(false) }
+                        var isDisliked by remember { mutableStateOf(false) }
+                        var isCopied by remember { mutableStateOf(false) }
+                        var isFavorited by remember { mutableStateOf(false) }
+                        
+                        IconButton(
+                            onClick = { 
+                                isLiked = !isLiked
+                                println("${if (isLiked) "已点赞" else "取消点赞"}消息")
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color.White, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                                contentDescription = "点赞",
+                                tint = if (isLiked) Color.Blue else Color.Gray
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = { 
+                                isDisliked = !isDisliked
+                                println("${if (isDisliked) "已点踩" else "取消点踩"}消息")
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color.White, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
+                                contentDescription = "点踩",
+                                tint = if (isDisliked) Color.Blue else Color.Gray
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = { 
+                                isCopied = true
+                                println("已复制消息")
+                                // 重置复制状态
+                                scope.launch {
+                                    delay(2000) // 2秒后重置
+                                    isCopied = false
+                                }
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color.White, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isCopied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
+                                contentDescription = if (isCopied) "已复制" else "复制",
+                                tint = if (isCopied) Color.Green else Color.Blue
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = { 
+                                isFavorited = !isFavorited
+                                println("${if (isFavorited) "已收藏" else "取消收藏"}消息")
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color.White, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
+                                contentDescription = "收藏",
+                                tint = if (isFavorited) Color.Red else Color.Blue
+                            )
+                        }
                     }
                     
-                    IconButton(
-                        onClick = { /* 点踩 */ },
+                    Text(
+                        text = formatTime(message.timestamp),
+                        fontSize = 12.sp,
+                        color = Color.Gray,
                         modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.ThumbDown,
-                            contentDescription = "点踩",
-                            tint = Color.Blue
-                        )
-                    }
-                    
-                    IconButton(
-                        onClick = { /* 复制 */ },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.ContentCopy,
-                            contentDescription = "复制",
-                            tint = Color.Blue
-                        )
-                    }
-                    
-                    IconButton(
-                        onClick = { /* 收藏 */ },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(Color.White, CircleShape)
-                    ) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = "收藏",
-                            tint = Color.Blue
-                        )
-                    }
+                            .padding(top = 8.dp)
+                    )
                 }
-                
-                Text(
-                    text = "今天 10:30",
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                )
+            } else {
+                // 用户发送气泡
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = message.text,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(Color.Blue, RoundedCornerShape(16.dp))
+                            .padding(12.dp)
+                    )
+                    
+                    Text(
+                        text = formatTime(message.timestamp),
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                    )
+                }
             }
-        }
-        
-        item {
-            // 用户发送气泡
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Text(
-                    text = "你好，请介绍一下你能做什么？",
-                    color = Color.White,
-                    modifier = Modifier
-                        .background(Color.Blue, RoundedCornerShape(16.dp))
-                        .padding(12.dp)
-                )
-            }
-            
-            Text(
-                text = "今天 10:28",
-                fontSize = 12.sp,
-                color = Color.Gray,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End
-            )
         }
     }
 }
@@ -292,8 +471,13 @@ fun ChatContentArea(modifier: Modifier = Modifier) {
 @Composable
 fun BottomInputArea(
     isExpanded: Boolean,
-    onExpandChange: (Boolean) -> Unit
+    onExpandChange: (Boolean) -> Unit,
+    inputText: String = "",
+    onInputTextChanged: (String) -> Unit = {},
+    onSendMessage: (String) -> Unit = {}
 ) {
+    var text by remember { mutableStateOf(inputText) }
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -306,19 +490,36 @@ fun BottomInputArea(
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { /* 相机 */ }) {
+            IconButton(onClick = { 
+                /* 相机功能 */
+                println("相机按钮被点击")
+            }) {
                 Icon(Icons.Default.Camera, contentDescription = "相机")
             }
             
             OutlinedTextField(
-                value = "",
-                onValueChange = {},
+                value = text,
+                onValueChange = { 
+                    text = it
+                    onInputTextChanged(it)
+                },
                 placeholder = { Text("输入消息...") },
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true
             )
+            
+            IconButton(onClick = { 
+                onSendMessage(text)
+                text = "" // 清空输入框
+            }) {
+                Icon(
+                    Icons.Default.Send,
+                    contentDescription = "发送"
+                )
+            }
             
             IconButton(onClick = { onExpandChange(!isExpanded) }) {
                 Icon(
@@ -356,7 +557,10 @@ fun ExpandedInputArea() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 IconButton(
-                    onClick = { /* 相机 */ },
+                    onClick = { 
+                        /* 相机功能 */
+                        println("扩展区域相机按钮被点击")
+                    },
                     modifier = Modifier
                         .size(56.dp)
                         .background(Color.LightGray, CircleShape)
@@ -370,7 +574,10 @@ fun ExpandedInputArea() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 IconButton(
-                    onClick = { /* 相册 */ },
+                    onClick = { 
+                        /* 相册功能 */
+                        println("相册按钮被点击")
+                    },
                     modifier = Modifier
                         .size(56.dp)
                         .background(Color.LightGray, CircleShape)
@@ -384,7 +591,10 @@ fun ExpandedInputArea() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 IconButton(
-                    onClick = { /* 文件 */ },
+                    onClick = { 
+                        /* 文件功能 */
+                        println("文件按钮被点击")
+                    },
                     modifier = Modifier
                         .size(56.dp)
                         .background(Color.LightGray, CircleShape)
@@ -398,7 +608,10 @@ fun ExpandedInputArea() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 IconButton(
-                    onClick = { /* 打电话 */ },
+                    onClick = { 
+                        /* 打电话功能 */
+                        println("打电话按钮被点击")
+                    },
                     modifier = Modifier
                         .size(56.dp)
                         .background(Color.LightGray, CircleShape)
@@ -435,6 +648,9 @@ fun ExpandedInputArea() {
                                 .size(70.dp)
                                 .padding(4.dp)
                                 .background(Color.LightGray, RoundedCornerShape(8.dp))
+                                .clickable { 
+                                    println("选择了图片: 行$rowIndex, 列$columnIndex")
+                                }
                         )
                     }
                 }
@@ -455,13 +671,26 @@ fun SettingScreen() {
     var customApiUrl by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf("GPT-4") }
+    var userInfo by remember { mutableStateOf(UserInfo()) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    
+    if (showEditDialog) {
+        EditUserInfoDialog(
+            userInfo = userInfo,
+            onUserInfoChange = { userInfo = it },
+            onDismiss = { showEditDialog = false }
+        )
+    }
     
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
-                    IconButton(onClick = { /* 返回 */ }) {
+                    IconButton(onClick = { 
+                        /* 返回功能 */
+                        println("返回按钮被点击")
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 }
@@ -494,19 +723,19 @@ fun SettingScreen() {
                                     .background(Color.Gray),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("U", color = Color.White)
+                                Text(userInfo.avatar, color = Color.White)
                             }
                             
                             Spacer(Modifier.width(16.dp))
                             
                             Column {
                                 Text(
-                                    text = "用户名",
+                                    text = userInfo.username,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
                                 )
                                 Text(
-                                    text = "个性签名",
+                                    text = userInfo.signature,
                                     fontSize = 14.sp,
                                     color = Color.Gray
                                 )
@@ -516,7 +745,9 @@ fun SettingScreen() {
                         Spacer(Modifier.height(16.dp))
                         
                         Button(
-                            onClick = { /* 编辑用户信息 */ },
+                            onClick = { 
+                                showEditDialog = true
+                            },
                             modifier = Modifier.align(Alignment.End)
                         ) {
                             Text("编辑")
@@ -615,6 +846,76 @@ fun SettingScreen() {
     }
 }
 
+/**
+ * 编辑用户信息对话框
+ */
+@Composable
+fun EditUserInfoDialog(
+    userInfo: UserInfo,
+    onUserInfoChange: (UserInfo) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var username by remember { mutableStateOf(userInfo.username) }
+    var signature by remember { mutableStateOf(userInfo.signature) }
+    var avatar by remember { mutableStateOf(userInfo.avatar) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑用户信息") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("用户名") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = signature,
+                    onValueChange = { signature = it },
+                    label = { Text("个性签名") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = avatar,
+                    onValueChange = { avatar = it },
+                    label = { Text("头像字符") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onUserInfoChange(
+                        UserInfo(
+                            username = username,
+                            signature = signature,
+                            avatar = avatar
+                        )
+                    )
+                    onDismiss()
+                }
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+/**
+ * 服务提供商选择器
+ */
 @Composable
 fun ServiceProviderSelector(
     serviceProvider: String,
@@ -669,6 +970,9 @@ fun ServiceProviderSelector(
     }
 }
 
+/**
+ * 模型选择器
+ */
 @Composable
 fun ModelSelector(
     selectedModel: String,
@@ -712,6 +1016,29 @@ fun ModelSelector(
 
 @Composable
 fun LocalModelSection() {
+    /* // 模拟本地模型列表
+    val localModels = remember {
+        mutableStateListOf(
+            LocalModel("1", "Qwen 7B", "3.5GB", true),
+            LocalModel("2", "Llama 2 7B", "12GB", true),
+            LocalModel("3", "Mistral 7B", "4.1GB", false)
+        )
+    } */
+    
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    
+    /* if (showDownloadDialog) {
+        DownloadModelDialog(
+            onDismiss = { showDownloadDialog = false },
+            onDownload = { model ->
+                // 模拟下载过程
+                /* val newModel = model.copy(isDownloaded = true)
+                localModels.add(newModel) */
+                showDownloadDialog = false
+            }
+        )
+    } */
+    
     Column {
         Text(
             text = "本地模型",
@@ -721,6 +1048,28 @@ fun LocalModelSection() {
         )
         
         // 已下载的模型列表
+        /* localModels.filter { it.isDownloaded }.forEach { model ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                ListItem(
+                    headlineContent = { Text(model.name) },
+                    supportingContent = { Text(model.size) },
+                    trailingContent = {
+                        RadioButton(
+                            selected = true,
+                            onClick = { 
+                                /* 选择模型 */
+                                println("选择了模型: ${model.name}")
+                            }
+                        )
+                    }
+                )
+            }
+        } */
+        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -732,7 +1081,10 @@ fun LocalModelSection() {
                 trailingContent = {
                     RadioButton(
                         selected = true,
-                        onClick = { /* 选择模型 */ }
+                        onClick = { 
+                            /* 选择模型 */
+                            println("选择了Qwen 7B模型")
+                        }
                     )
                 }
             )
@@ -749,15 +1101,45 @@ fun LocalModelSection() {
                 trailingContent = {
                     RadioButton(
                         selected = false,
-                        onClick = { /* 选择模型 */ }
+                        onClick = { 
+                            /* 选择模型 */
+                            println("选择了Llama 2 7B模型")
+                        }
                     )
                 }
             )
         }
         
+        // 可下载的模型列表
+        /* localModels.filter { !it.isDownloaded }.forEach { model ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                ListItem(
+                    headlineContent = { Text(model.name) },
+                    supportingContent = { Text(model.size) },
+                    trailingContent = {
+                        Button(
+                            onClick = { 
+                                // 开始下载模型
+                                println("开始下载模型: ${model.name}")
+                            }
+                        ) {
+                            Text("下载")
+                        }
+                    }
+                )
+            }
+        } */
+        
         // 添加新模型按钮
         OutlinedButton(
-            onClick = { /* 下载新模型 */ },
+            onClick = { 
+                /* 下载新模型 */
+                println("添加模型按钮被点击")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp)
