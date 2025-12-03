@@ -29,7 +29,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Repository
+import com.mikepenz.markdown.compose.Markdown
+import com.mikepenz.markdown.m3.Markdown
+import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -98,7 +102,7 @@ data class AppState(
             timestamp = Date(System.currentTimeMillis() - 86400000) // 1天前
         )
     ),
-    val currentConversationId: Long? = 1
+    var currentConversationId: Long? = 1
 )
 
 data class ChatState(
@@ -125,7 +129,7 @@ data class ChatState(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SideDrawer(
-    onChatPageSelected: () -> Unit = {},
+    onChatPageSelected: (Long) -> Unit = {},
     onSettingPageSelected: () -> Unit = {},
     conversations: List<Conversation> = emptyList(),
     drawerWidth: androidx.compose.ui.unit.Dp = 300.dp
@@ -160,7 +164,7 @@ fun SideDrawer(
             onClick = {
                 println("新建对话按钮被点击")
                 // 在实际应用中，这里会创建一个新的对话
-                onChatPageSelected()
+                onChatPageSelected(-1) // -1表示新建对话
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -197,7 +201,7 @@ fun SideDrawer(
                     },
                     modifier = Modifier.clickable { 
                         println("选择了对话: ${conversation.title}")
-                        onChatPageSelected() 
+                        onChatPageSelected(conversation.id) 
                     }
                 )
             }
@@ -256,7 +260,7 @@ fun ChatScreen(drawerState: DrawerState, appState: AppState, isDarkTheme: Boolea
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "当前AI模型",
+                            text = repository.getSelectedModel(),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -303,18 +307,37 @@ fun ChatScreen(drawerState: DrawerState, appState: AppState, isDarkTheme: Boolea
                             inputText = ""
                         )
                         
-                        // 调用AI API获取回复
+                        // 调用AI API获取回复（流式）
                         scope.launch {
-                            val aiResponse = repository.getAIResponse(text)
-                            val aiMessage = Message(
-                                id = System.currentTimeMillis() + 1,
-                                text = aiResponse,
+                            var accumulatedResponse = ""
+                            val aiMessageId = System.currentTimeMillis() + 1
+                            
+                            // 创建一个初始的AI消息
+                            val initialAiMessage = Message(
+                                id = aiMessageId,
+                                text = "",
                                 isUser = false,
                                 timestamp = Date()
                             )
+                            
+                            // 添加初始消息到状态
                             chatState = chatState.copy(
-                                messages = chatState.messages + aiMessage
+                                messages = chatState.messages + initialAiMessage
                             )
+                            
+                            // 流式接收响应
+                            repository.streamAIResponse(text).collect { chunk ->
+                                accumulatedResponse += chunk
+                                // 更新消息内容
+                                val updatedMessages = chatState.messages.map { message ->
+                                    if (message.id == aiMessageId) {
+                                        message.copy(text = accumulatedResponse)
+                                    } else {
+                                        message
+                                    }
+                                }
+                                chatState = chatState.copy(messages = updatedMessages)
+                            }
                         }
                     }
                 }
@@ -349,6 +372,7 @@ fun ChatContentArea(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    val isDarkTheme = isSystemInDarkTheme()
     LazyColumn(
         modifier = modifier
             .padding(16.dp),
@@ -358,9 +382,8 @@ fun ChatContentArea(
             if (!message.isUser) {
                 // AI回复气泡
                 Column {
-                    Text(
-                        text = message.text,
-                        color = Color.Black
+                    Markdown(
+                        content = message.text
                     )
                     
                     // 交互按钮
@@ -381,12 +404,12 @@ fun ChatContentArea(
                             },
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color.White, CircleShape)
+                                .background(if (isDarkTheme) Color.DarkGray else Color.White, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
                                 contentDescription = "点赞",
-                                tint = if (isLiked) Color.Blue else Color.Gray
+                                tint = if (isLiked) Color.Blue else if (isDarkTheme) Color.LightGray else Color.Gray
                             )
                         }
                         
@@ -397,12 +420,12 @@ fun ChatContentArea(
                             },
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color.White, CircleShape)
+                                .background(if (isDarkTheme) Color.DarkGray else Color.White, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
                                 contentDescription = "点踩",
-                                tint = if (isDisliked) Color.Blue else Color.Gray
+                                tint = if (isDisliked) Color.Blue else if (isDarkTheme) Color.LightGray else Color.Gray
                             )
                         }
                         
@@ -418,12 +441,12 @@ fun ChatContentArea(
                             },
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color.White, CircleShape)
+                                .background(if (isDarkTheme) Color.DarkGray else Color.White, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (isCopied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
                                 contentDescription = if (isCopied) "已复制" else "复制",
-                                tint = if (isCopied) Color.Green else Color.Blue
+                                tint = if (isCopied) Color.Green else if (isDarkTheme) Color.Blue else Color.Blue
                             )
                         }
                         
@@ -434,12 +457,12 @@ fun ChatContentArea(
                             },
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color.White, CircleShape)
+                                .background(if (isDarkTheme) Color.DarkGray else Color.White, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
                                 contentDescription = "收藏",
-                                tint = if (isFavorited) Color.Red else Color.Blue
+                                tint = if (isFavorited) Color.Red else if (isDarkTheme) Color.LightGray else Color.Blue
                             )
                         }
                     }
@@ -447,7 +470,7 @@ fun ChatContentArea(
                     Text(
                         text = formatTime(message.timestamp),
                         fontSize = 12.sp,
-                        color = Color.Gray,
+                        color = if (isDarkTheme) Color.LightGray else Color.Gray,
                         modifier = Modifier
                             .padding(top = 8.dp)
                     )
@@ -458,10 +481,10 @@ fun ChatContentArea(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.End
                 ) {
-                    Text(
-                        text = message.text,
-                        color = Color.White,
+                    Markdown(
+                        content = message.text,
                         modifier = Modifier
+                            .fillMaxWidth()
                             .background(Color.Blue, RoundedCornerShape(16.dp))
                             .padding(12.dp)
                     )
@@ -469,7 +492,7 @@ fun ChatContentArea(
                     Text(
                         text = formatTime(message.timestamp),
                         fontSize = 12.sp,
-                        color = Color.Gray,
+                        color = if (isDarkTheme) Color.LightGray else Color.Gray,
                         modifier = Modifier
                             .padding(top = 4.dp)
                     )
@@ -678,7 +701,7 @@ fun ExpandedInputArea() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>) {
+fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>, onBack: () -> Unit = {}) {
     var darkMode by remember { mutableStateOf(darkModeState.value) }
     var useCloudModel by remember { mutableStateOf(repository.getUseCloudModel()) }
     var serviceProvider by remember { mutableStateOf(repository.getServiceProvider()) }
@@ -703,11 +726,7 @@ fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>) 
             TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
-                    IconButton(onClick = { 
-                        // 返回功能
-                        // 在实际应用中，这里应该导航回到主界面
-                        Toast.makeText(context, "返回主界面", Toast.LENGTH_SHORT).show()
-                    }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }

@@ -1,9 +1,11 @@
 package com.chenhongyu.huajuan.network
 
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Header
+import retrofit2.http.Streaming
 
 // OpenAI API 接口
 interface OpenAiApiService {
@@ -13,13 +15,22 @@ interface OpenAiApiService {
         @Header("Content-Type") contentType: String = "application/json",
         @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
+    
+    @Streaming
+    @POST("v1/chat/completions")
+    suspend fun streamChatCompletion(
+        @Header("Authorization") authorization: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body request: OpenAiRequest
+    ): Response<ResponseBody>
 }
 
 // 请求数据类
 data class OpenAiRequest(
     val model: String,
     val messages: List<Message>,
-    val temperature: Float = 0.7f
+    val temperature: Float = 0.7f,
+    val stream: Boolean = false
 )
 
 data class Message(

@@ -53,11 +53,14 @@ fun MainApp(repository: Repository) {
     // 从Repository获取深色模式设置
     val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
     
+    val appState = remember { AppState() }
+    
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             SideDrawer(
-                onChatPageSelected = { 
+                onChatPageSelected = { conversationId -> 
+                    appState.currentConversationId = conversationId
                     currentPage.value = 0
                     scope.launch { drawerState.close() }
                 },
@@ -65,7 +68,7 @@ fun MainApp(repository: Repository) {
                     currentPage.value = 1
                     scope.launch { drawerState.close() }
                 },
-                conversations = AppState().conversations
+                conversations = appState.conversations
             )
         }
     ) {
@@ -83,9 +86,9 @@ fun MainApp(repository: Repository) {
                     .background(scrimColor)
             ) {
                 when (currentPage.value) {
-                    0 -> ChatScreen(drawerState, AppState(), darkMode.value, repository)
-                    1 -> SettingScreen(repository, darkMode)
-                    else -> ChatScreen(drawerState, AppState(), darkMode.value, repository)
+                    0 -> ChatScreen(drawerState, appState, darkMode.value, repository)
+                    1 -> SettingScreen(repository, darkMode, onBack = { currentPage.value = 0 })
+                    else -> ChatScreen(drawerState, appState, darkMode.value, repository)
                 }
             }
         }
