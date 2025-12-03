@@ -17,23 +17,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import com.chenhongyu.huajuan.data.Repository
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private lateinit var repository: Repository
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // 初始化Repository
+        repository = Repository(this)
+        
         setContent {
-            HuaJuanTheme {
-                MainApp()
-            }
+            MainApp(repository)
         }
     }
 }
 
 @Composable
-fun MainApp() {
+fun MainApp(repository: Repository) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     
@@ -42,11 +47,11 @@ fun MainApp() {
     val screenWidth = configuration.screenWidthDp.dp
     val drawerWidth = screenWidth * 0.75f
     
-    // 应用状态管理
-    // val appState = remember { mutableStateOf(AppState()) }
-    
     // 当前页面状态：0-聊天页，1-设置页
     val currentPage = remember { mutableStateOf(0) }
+    
+    // 从Repository获取深色模式设置
+    val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
     
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -71,15 +76,17 @@ fun MainApp() {
             Color.Transparent
         }
         
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(scrimColor)
-        ) {
-            when (currentPage.value) {
-                0 -> ChatScreen(drawerState)
-                1 -> SettingScreen()
-                else -> ChatScreen(drawerState)
+        HuaJuanTheme(darkTheme = darkMode.value) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(scrimColor)
+            ) {
+                when (currentPage.value) {
+                    0 -> ChatScreen(drawerState, AppState(), darkMode.value, repository)
+                    1 -> SettingScreen(repository, darkMode)
+                    else -> ChatScreen(drawerState, AppState(), darkMode.value, repository)
+                }
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.chenhongyu.huajuan
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,9 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chenhongyu.huajuan.data.Repository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -236,10 +240,11 @@ fun SideDrawer(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(drawerState: DrawerState) {
+fun ChatScreen(drawerState: DrawerState, appState: AppState, isDarkTheme: Boolean, repository: Repository) {
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
     var chatState by remember { mutableStateOf(ChatState()) }
+    val context = LocalContext.current
     
     Scaffold(
         topBar = {
@@ -298,18 +303,17 @@ fun ChatScreen(drawerState: DrawerState) {
                             inputText = ""
                         )
                         
-                        // 模拟AI回复（实际应该调用AI API）
-                        // 这里使用协程延迟模拟网络请求
+                        // 调用AI API获取回复
                         scope.launch {
-                            kotlinx.coroutines.delay(1000) // 模拟1秒延迟
+                            val aiResponse = repository.getAIResponse(text)
                             val aiMessage = Message(
                                 id = System.currentTimeMillis() + 1,
-                                text = "这是AI的回复：$text",
+                                text = aiResponse,
                                 isUser = false,
                                 timestamp = Date()
                             )
                             chatState = chatState.copy(
-                                messages = chatState.messages + userMessage + aiMessage
+                                messages = chatState.messages + aiMessage
                             )
                         }
                     }
@@ -324,6 +328,16 @@ fun ChatScreen(drawerState: DrawerState) {
                 .fillMaxSize()
         )
     }
+}
+
+// 模拟AI API调用
+suspend fun callAI_API(prompt: String, appState: AppState): String {
+    // 模拟网络延迟
+    delay(1000)
+    
+    // 在实际应用中，这里会调用真实的AI API
+    // 根据用户设置的服务提供商和API密钥进行调用
+    return "这是来自AI的真实回复: $prompt"
 }
 
 /**
@@ -664,15 +678,17 @@ fun ExpandedInputArea() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreen() {
-    var darkMode by remember { mutableStateOf(false) }
-    var useCloudModel by remember { mutableStateOf(true) }
-    var serviceProvider by remember { mutableStateOf("OpenAI") }
-    var customApiUrl by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf("") }
-    var selectedModel by remember { mutableStateOf("GPT-4") }
+fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>) {
+    var darkMode by remember { mutableStateOf(darkModeState.value) }
+    var useCloudModel by remember { mutableStateOf(repository.getUseCloudModel()) }
+    var serviceProvider by remember { mutableStateOf(repository.getServiceProvider()) }
+    var customApiUrl by remember { mutableStateOf(repository.getCustomApiUrl()) }
+    var apiKey by remember { mutableStateOf(repository.getApiKey()) }
+    var selectedModel by remember { mutableStateOf(repository.getSelectedModel()) }
     var userInfo by remember { mutableStateOf(UserInfo()) }
     var showEditDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     if (showEditDialog) {
         EditUserInfoDialog(
@@ -688,10 +704,11 @@ fun SettingScreen() {
                 title = { Text("设置") },
                 navigationIcon = {
                     IconButton(onClick = { 
-                        /* 返回功能 */
-                        println("返回按钮被点击")
+                        // 返回功能
+                        // 在实际应用中，这里应该导航回到主界面
+                        Toast.makeText(context, "返回主界面", Toast.LENGTH_SHORT).show()
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -780,7 +797,11 @@ fun SettingScreen() {
                             Text("深色模式")
                             Switch(
                                 checked = darkMode,
-                                onCheckedChange = { darkMode = it }
+                                onCheckedChange = { 
+                                    darkMode = it
+                                    darkModeState.value = it
+                                    repository.setDarkMode(it)
+                                }
                             )
                         }
                     }
@@ -811,7 +832,10 @@ fun SettingScreen() {
                             Text("使用云端模型")
                             Switch(
                                 checked = useCloudModel,
-                                onCheckedChange = { useCloudModel = it }
+                                onCheckedChange = { 
+                                    useCloudModel = it
+                                    repository.setUseCloudModel(it)
+                                }
                             )
                         }
                         
@@ -819,22 +843,50 @@ fun SettingScreen() {
                             // 云端模型设置
                             ServiceProviderSelector(
                                 serviceProvider = serviceProvider,
-                                onServiceProviderChange = { serviceProvider = it },
+                                onServiceProviderChange = { 
+                                    serviceProvider = it
+                                    repository.setServiceProvider(it)
+                                },
                                 customApiUrl = customApiUrl,
-                                onCustomApiUrlChange = { customApiUrl = it }
+                                onCustomApiUrlChange = { 
+                                    customApiUrl = it
+                                    repository.setCustomApiUrl(it)
+                                }
                             )
                             
                             OutlinedTextField(
                                 value = apiKey,
-                                onValueChange = { apiKey = it },
+                                onValueChange = { 
+                                    apiKey = it
+                                    repository.setApiKey(it)
+                                },
                                 label = { Text("API密钥") },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             
                             ModelSelector(
                                 selectedModel = selectedModel,
-                                onModelChange = { selectedModel = it }
+                                onModelChange = { 
+                                    selectedModel = it
+                                    repository.setSelectedModel(it)
+                                }
                             )
+                            
+                            // 添加测试连接按钮
+                            Button(
+                                onClick = {
+                                    // 在实际应用中，这里会测试API连接
+                                    scope.launch {
+                                        val response = repository.getAIResponse("Hello, test connection!")
+                                        Toast.makeText(context, response, Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            ) {
+                                Text("测试连接")
+                            }
                         } else {
                             // 本地模型设置
                             LocalModelSection()
