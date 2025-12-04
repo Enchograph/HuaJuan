@@ -244,7 +244,8 @@ fun MainApp(
                     }
                 },
                 conversations = appState.conversations,
-                drawerWidth = drawerWidth
+                drawerWidth = drawerWidth,
+                darkTheme = darkMode.value
             )
         }
         

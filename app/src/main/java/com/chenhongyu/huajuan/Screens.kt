@@ -3,6 +3,7 @@ package com.chenhongyu.huajuan
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Repository
 import com.mikepenz.markdown.compose.Markdown
-import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.m3.markdownTypography
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
@@ -42,6 +44,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
+import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
+import androidx.compose.ui.window.Dialog
 
 fun formatTime(date: Date): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -296,7 +300,22 @@ fun ChatContentArea(
                                 .padding(16.dp)
                         ) {
                             Markdown(
-                                content = message.text
+                                content = message.text,
+                                colors = markdownColor(
+                                    text = MaterialTheme.colorScheme.onSurface,
+                                    codeBackground = MaterialTheme.colorScheme.secondaryContainer,
+                                    codeText = MaterialTheme.colorScheme.onSecondaryContainer
+                                ),
+                                typography = markdownTypography(
+                                    MaterialTheme.typography.bodyLarge,
+                                    MaterialTheme.typography.bodyMedium,
+                                    MaterialTheme.typography.headlineSmall,
+                                    MaterialTheme.typography.headlineSmall,
+                                    MaterialTheme.typography.titleLarge,
+                                    MaterialTheme.typography.titleMedium,
+                                    MaterialTheme.typography.titleSmall,
+                                    MaterialTheme.typography.bodyLarge
+                                )
                             )
                         }
                     }
@@ -430,7 +449,22 @@ fun ChatContentArea(
                                 .padding(16.dp)
                         ) {
                             Markdown(
-                                content = message.text
+                                content = message.text,
+                                colors = markdownColor(
+                                    text = MaterialTheme.colorScheme.onPrimary,
+                                    codeBackground = MaterialTheme.colorScheme.primaryContainer,
+                                    codeText = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                typography = markdownTypography(
+                                    MaterialTheme.typography.bodyLarge,
+                                    MaterialTheme.typography.bodyMedium,
+                                    MaterialTheme.typography.headlineSmall,
+                                    MaterialTheme.typography.headlineSmall,
+                                    MaterialTheme.typography.titleLarge,
+                                    MaterialTheme.typography.titleMedium,
+                                    MaterialTheme.typography.titleSmall,
+                                    MaterialTheme.typography.bodyLarge
+                                )
                             )
                         }
                     }
@@ -467,6 +501,8 @@ fun BottomInputArea(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .imePadding() // 自动适应输入法高度
+            .navigationBarsPadding() // 自动适应导航栏高度
     ) {
         // 输入框行
         Row(
@@ -508,7 +544,10 @@ fun BottomInputArea(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 textStyle = MaterialTheme.typography.bodyLarge,
                 keyboardOptions = KeyboardOptions.Default.copy(
@@ -569,6 +608,7 @@ fun ExpandedInputArea() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp)
+            .navigationBarsPadding() // 适配导航栏
     ) {
         // 第一行功能按钮
         Row(
@@ -684,7 +724,8 @@ fun ExpandedInputArea() {
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
             modifier = Modifier
-                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+            color = MaterialTheme.colorScheme.onSurface
         )
         
         // 四列2.5行的图片网格
@@ -732,7 +773,7 @@ fun ExpandedInputArea() {
 @Composable
 fun SettingScreen(
     repository: Repository, 
-    darkModeState: MutableState<Boolean>, 
+    darkModeState: MutableState<Boolean>,
     onMenuClick: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
@@ -990,7 +1031,11 @@ fun SettingScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 colors = TextFieldDefaults.colors(
                                     focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                             
@@ -1033,9 +1078,6 @@ fun SettingScreen(
     }
 }
 
-/**
- * 编辑用户信息对话框
- */
 @Composable
 fun EditUserInfoDialog(
     userInfo: UserInfo,
@@ -1046,88 +1088,116 @@ fun EditUserInfoDialog(
     var signature by remember { mutableStateOf(userInfo.signature) }
     var avatar by remember { mutableStateOf(userInfo.avatar) }
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { 
-            Text(
-                text = "编辑用户信息",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface
-            ) 
-        },
-        text = {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
             ) {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("用户名") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
+                Text(
+                    text = "编辑用户信息",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                OutlinedTextField(
-                    value = signature,
-                    onValueChange = { signature = it },
-                    label = { Text("个性签名") },
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-                
-                OutlinedTextField(
-                    value = avatar,
-                    onValueChange = { avatar = it },
-                    label = { Text("头像字符") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onUserInfoChange(
-                        UserInfo(
-                            username = username,
-                            signature = signature,
-                            avatar = avatar
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text("用户名") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
-                    onDismiss()
-                },
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("保存")
+                    
+                    OutlinedTextField(
+                        value = signature,
+                        onValueChange = { signature = it },
+                        label = { Text("个性签名") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    
+                    OutlinedTextField(
+                        value = avatar,
+                        onValueChange = { avatar = it },
+                        label = { Text("头像字符") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text("取消")
+                    }
+                    
+                    Spacer(Modifier.width(8.dp))
+                    
+                    Button(
+                        onClick = {
+                            onUserInfoChange(
+                                UserInfo(
+                                    username = username,
+                                    signature = signature,
+                                    avatar = avatar
+                                )
+                            )
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text("保存")
+                    }
+                }
             }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("取消")
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.surface
-    )
+        }
+    }
 }
 
 /**
@@ -1201,7 +1271,11 @@ fun ServiceProviderSelector(
                 shape = RoundedCornerShape(12.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -1386,209 +1460,224 @@ fun SideDrawer(
     onChatPageSelected: (Long) -> Unit = {},
     onSettingPageSelected: () -> Unit = {},
     conversations: List<Conversation> = emptyList(),
-    drawerWidth: androidx.compose.ui.unit.Dp = 300.dp
+    drawerWidth: androidx.compose.ui.unit.Dp = 300.dp,
+    darkTheme: Boolean = isSystemInDarkTheme()
 ) {
-    ModalDrawerSheet(
-        modifier = Modifier.width(drawerWidth),
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
-        drawerTonalElevation = 1.dp
-    ) {
-        // 顶部应用标题和图标
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            contentAlignment = Alignment.CenterStart
+    HuaJuanTheme(darkTheme = darkTheme) {
+        ModalDrawerSheet(
+            modifier = Modifier.width(drawerWidth),
+            drawerContainerColor = MaterialTheme.colorScheme.surface,
+            drawerTonalElevation = 1.dp,
+            drawerShape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 0.dp, bottomEnd = 0.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            // 顶部应用标题和图标
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "花卷AI",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-        
-        // 搜索框 - 修改为浅灰色背景的胶囊形状，内有搜索图标和"搜索..."占位文字
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            placeholder = { Text("搜索...") },
-            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(50.dp), // 胶囊形状
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
-
-        // 新建对话按钮
-        Button(
-            onClick = {
-                println("新建对话按钮被点击")
-                // 在实际应用中，这里会创建一个新的对话
-                onChatPageSelected(-1) // -1表示新建对话
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(16.dp),
-            elevation = ButtonDefaults.buttonElevation(2.dp)
-        ) {
-            Icon(Icons.Outlined.Add, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("新建对话")
-        }
-
-        // 历史对话标题
-        Text(
-            text = "历史对话",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-        )
-
-        // 历史对话列表
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            items(conversations) { conversation ->
-                ListItem(
-                    headlineContent = { 
-                        Text(
-                            text = conversation.title,
-                            maxLines = 1,
-                            style = MaterialTheme.typography.bodyLarge
-                        ) 
-                    },
-                    supportingContent = { 
-                        Text(
-                            text = "${conversation.lastMessage} · ${formatConversationTime(conversation.timestamp)}",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ) 
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape) // 圆形彩色背景图标
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = conversation.title.take(1),
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { 
-                            println("选择了对话: ${conversation.title}")
-                            onChatPageSelected(conversation.id) 
-                        }
-                        .padding(horizontal = 8.dp)
-                )
-            }
-        }
-
-        // 底部用户栏
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
-        ListItem(
-            headlineContent = { 
-                Text(
-                    text = "用户名",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                ) 
-            },
-            supportingContent = { 
-                Text(
-                    text = "个性签名",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ) 
-            },
-            leadingContent = {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape) // 圆形头像
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "U", 
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        style = MaterialTheme.typography.titleMedium
+                        text = "花卷AI",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            },
-            trailingContent = {
-                IconButton(
-                    onClick = {
-                        println("点击了设置按钮")
-                        onSettingPageSelected()
-                    },
-                    modifier = Modifier
-                        .clip(CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "设置",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+            }
+            
+            // 搜索框 - 修改为浅灰色背景的胶囊形状，内有搜索图标和"搜索..."占位文字
+            OutlinedTextField(
+                value = "",
+                onValueChange = {},
+                placeholder = { Text("搜索...") },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(50.dp), // 胶囊形状
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+
+            // 新建对话按钮
+            Button(
+                onClick = {
+                    println("新建对话按钮被点击")
+                    // 在实际应用中，这里会创建一个新的对话
+                    onChatPageSelected(-1) // -1表示新建对话
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.buttonElevation(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("新建对话")
+            }
+
+            // 历史对话标题
+            Text(
+                text = "历史对话",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+            )
+
+            // 历史对话列表
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                items(conversations) { conversation ->
+                    ListItem(
+                        headlineContent = { 
+                            Text(
+                                text = conversation.title,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ) 
+                        },
+                        supportingContent = { 
+                            Text(
+                                text = "${conversation.lastMessage} · ${formatConversationTime(conversation.timestamp)}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ) 
+                        },
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape) // 圆形彩色背景图标
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = conversation.title.take(1),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(
+                            containerColor = Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { 
+                                println("选择了对话: ${conversation.title}")
+                                onChatPageSelected(conversation.id) 
+                            }
+                            .padding(horizontal = 8.dp)
                     )
                 }
-            },
-            colors = ListItemDefaults.colors(
-                containerColor = Color.Transparent
-            ),
-            modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { 
-                    println("点击了底部用户栏")
-                    onSettingPageSelected() 
-                }
-                .padding(horizontal = 8.dp)
-        )
+            }
+
+            // 底部用户栏
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            ListItem(
+                headlineContent = { 
+                    Text(
+                        text = "用户名",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ) 
+                },
+                supportingContent = { 
+                    Text(
+                        text = "个性签名",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ) 
+                },
+                leadingContent = {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape) // 圆形头像
+                            .background(MaterialTheme.colorScheme.secondaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "U", 
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                },
+                trailingContent = {
+                    IconButton(
+                        onClick = {
+                            println("点击了设置按钮")
+                            onSettingPageSelected()
+                        },
+                        modifier = Modifier
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "设置",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent
+                ),
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { 
+                        println("点击了底部用户栏")
+                        onSettingPageSelected() 
+                    }
+                    .padding(horizontal = 8.dp)
+            )
+        }
     }
 }
