@@ -298,46 +298,48 @@ fun MainApp(
                 .fillMaxSize()
                 .offset { IntOffset(drawerOffset.value.roundToInt(), 0) }
         ) {
-            SideDrawer(
-                onChatPageSelected = { conversationId -> 
-                    appState.currentConversationId = conversationId
-                    // 更新appState中的对话列表
-                    appState.conversations = repository.getConversations()
-                    // 切换到聊天页面（无动画）
-                    currentPage.value = 0
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch { 
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onSettingPageSelected = { 
-                    // 切换到设置页面（无动画）
-                    currentPage.value = 1
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch { 
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onAICreationPageSelected = {
-                    // 切换到AI创作页面（无动画）
-                    currentPage.value = 2
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch {
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onAgentPageSelected = {
-                    // 切换到智能体页面（无动画）
-                    currentPage.value = 3
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch {
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                conversations = appState.conversations,
-                drawerWidth = drawerWidth,
-                darkTheme = darkMode.value
-            )
+            HuaJuanTheme(darkTheme = darkMode.value) {
+                SideDrawer(
+                    onChatPageSelected = { conversationId -> 
+                        appState.currentConversationId = conversationId
+                        // 更新appState中的对话列表
+                        appState.conversations = repository.getConversations()
+                        // 切换到聊天页面（无动画）
+                        currentPage.value = 0
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch { 
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onSettingPageSelected = { 
+                        // 切换到设置页面（无动画）
+                        currentPage.value = 1
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch { 
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onAICreationPageSelected = {
+                        // 切换到AI创作页面（无动画）
+                        currentPage.value = 2
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch {
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onAgentPageSelected = {
+                        // 切换到智能体页面（无动画）
+                        currentPage.value = 3
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch {
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    conversations = appState.conversations,
+                    drawerWidth = drawerWidth,
+                    darkTheme = darkMode.value
+                )
+            }
         }
         
         // 当侧边栏展开时，点击主页面露出的部分视为返回操作
