@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -1459,6 +1460,8 @@ fun LocalModelSection() {
 fun SideDrawer(
     onChatPageSelected: (Long) -> Unit = {},
     onSettingPageSelected: () -> Unit = {},
+    onAICreationPageSelected: () -> Unit = {},
+    onAgentPageSelected: () -> Unit = {},
     conversations: List<Conversation> = emptyList(),
     drawerWidth: androidx.compose.ui.unit.Dp = 300.dp,
     darkTheme: Boolean = isSystemInDarkTheme()
@@ -1470,213 +1473,416 @@ fun SideDrawer(
             drawerTonalElevation = 1.dp,
             drawerShape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 0.dp, bottomEnd = 0.dp)
         ) {
-            // 顶部应用标题和图标
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                contentAlignment = Alignment.CenterStart
+                    .fillMaxSize()
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "花卷AI",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                // 顶部搜索框 (始终置顶)
+                OutlinedTextField(
+                    value = "",
+                    onValueChange = {},
+                    placeholder = { Text("搜索...") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .align(Alignment.TopCenter),
+                    shape = RoundedCornerShape(50.dp), // 胶囊形状
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-            
-            // 搜索框 - 修改为浅灰色背景的胶囊形状，内有搜索图标和"搜索..."占位文字
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("搜索...") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(50.dp), // 胶囊形状
-                colors = TextFieldDefaults.colors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            )
 
-            // 新建对话按钮
-            Button(
-                onClick = {
-                    println("新建对话按钮被点击")
-                    // 在实际应用中，这里会创建一个新的对话
-                    onChatPageSelected(-1) // -1表示新建对话
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp),
-                elevation = ButtonDefaults.buttonElevation(2.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("新建对话")
-            }
-
-            // 历史对话标题
-            Text(
-                text = "历史对话",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
-
-            // 历史对话列表
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                items(conversations) { conversation ->
-                    ListItem(
-                        headlineContent = { 
+                // 底部用户栏 (始终置底)
+                ListItem(
+                    headlineContent = { 
+                        Text(
+                            text = "用户名",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ) 
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape) // 圆形头像
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = conversation.title,
-                                maxLines = 1,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ) 
-                        },
-                        supportingContent = { 
-                            Text(
-                                text = "${conversation.lastMessage} · ${formatConversationTime(conversation.timestamp)}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ) 
-                        },
-                        leadingContent = {
-                            Box(
+                                text = "U", 
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Row {
+                            IconButton(
+                                onClick = {
+                                    println("点击了扫码按钮")
+                                },
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape) // 圆形彩色背景图标
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center
+                                    .clip(CircleShape)
                             ) {
-                                Text(
-                                    text = conversation.title.take(1),
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    style = MaterialTheme.typography.titleMedium
+                                Icon(
+                                    imageVector = Icons.Outlined.QrCodeScanner,
+                                    contentDescription = "扫码",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        },
-                        colors = ListItemDefaults.colors(
-                            containerColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { 
-                                println("选择了对话: ${conversation.title}")
-                                onChatPageSelected(conversation.id) 
+                            
+                            IconButton(
+                                onClick = {
+                                    println("点击了通知按钮")
+                                },
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Notifications,
+                                    contentDescription = "通知",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            .padding(horizontal = 8.dp)
-                    )
-                }
-            }
+                            
+                            IconButton(
+                                onClick = {
+                                    println("点击了设置按钮")
+                                    onSettingPageSelected()
+                                },
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Settings,
+                                    contentDescription = "设置",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { 
+                            println("点击了底部用户栏")
+                            onSettingPageSelected() 
+                        }
+                        .padding(horizontal = 8.dp)
+                        .align(Alignment.BottomCenter)
+                )
 
-            // 底部用户栏
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-            ListItem(
-                headlineContent = { 
-                    Text(
-                        text = "用户名",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ) 
-                },
-                supportingContent = { 
-                    Text(
-                        text = "个性签名",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) 
-                },
-                leadingContent = {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape) // 圆形头像
-                            .background(MaterialTheme.colorScheme.secondaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "U", 
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            style = MaterialTheme.typography.titleMedium
+                // 可滚动的内容区域 (第二和第三区块)
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                var showBackToTop by remember { mutableStateOf(false) }
+                
+                // 监听滚动状态以确定是否显示"回到花卷"按钮
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+                        // 当第一项(花卷项)完全不可见时显示按钮
+                        showBackToTop = index >= 3 // 花卷项是第0项，AI创作是第1项，发现智能体是第2项
+                    }
+                }
+                
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 16.dp + 56.dp, bottom = 80.dp) // 为顶部搜索框和底部用户栏留出空间
+                ) {
+                    // 第二个区块：主要功能
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            // "花卷" - 聊天页面入口
+                            ListItem(
+                                headlineContent = { 
+                                    Text(
+                                        text = "花卷",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ) 
+                                },
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { 
+                                        println("选择了花卷聊天")
+                                        onChatPageSelected(-1) // -1表示新建对话
+                                    }
+                            )
+                            
+                            // "AI 创作" - AI创作分享社区入口
+                            ListItem(
+                                headlineContent = { 
+                                    Text(
+                                        text = "AI 创作",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ) 
+                                },
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.secondaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { 
+                                        println("选择了AI创作")
+                                        onAICreationPageSelected()
+                                    }
+                            )
+                            
+                            // "发现智能体" - AI智能体选择页面入口
+                            ListItem(
+                                headlineContent = { 
+                                    Text(
+                                        text = "发现智能体",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ) 
+                                },
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.tertiaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ViewModule,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { 
+                                        println("选择了发现智能体")
+                                        onAgentPageSelected()
+                                    }
+                            )
+                        }
+                        
+                        // 分割线
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
-                },
-                trailingContent = {
-                    IconButton(
+                    
+                    // 第三个区块：历史记录
+                    item {
+                        Text(
+                            text = "历史记录",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                        )
+                    }
+                    
+                    items(conversations) { conversation ->
+                        ListItem(
+                            headlineContent = { 
+                                Text(
+                                    text = conversation.title,
+                                    maxLines = 1,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ) 
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(12.dp)) // 圆形彩色背景图标
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
+                            colors = ListItemDefaults.colors(
+                                containerColor = Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { 
+                                    println("选择了对话: ${conversation.title}")
+                                    onChatPageSelected(conversation.id) 
+                                }
+                                .padding(horizontal = 8.dp)
+                        )
+                    }
+                }
+                
+                // "回到花卷"浮动按钮
+                if (showBackToTop) {
+                    FloatingActionButton(
                         onClick = {
-                            println("点击了设置按钮")
-                            onSettingPageSelected()
+                            scope.launch {
+                                listState.animateScrollToItem(0)
+                            }
                         },
                         modifier = Modifier
-                            .clip(CircleShape)
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 90.dp), // 在用户栏上方
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = "设置",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "回到花卷")
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+/**
+ * AI创作页面（临时页面）
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AICreationScreen(
+    onMenuClick: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("AI 创作") },
+                navigationIcon = {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "打开侧边栏")
                     }
                 },
-                colors = ListItemDefaults.colors(
-                    containerColor = Color.Transparent
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { 
-                        println("点击了底部用户栏")
-                        onSettingPageSelected() 
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "AI 创作分享社区页面",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+/**
+ * 智能体页面（临时页面）
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AgentScreen(
+    onMenuClick: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("发现智能体") },
+                navigationIcon = {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "打开侧边栏")
                     }
-                    .padding(horizontal = 8.dp)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "AI 智能体选择页面",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

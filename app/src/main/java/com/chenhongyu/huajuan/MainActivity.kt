@@ -79,7 +79,7 @@ fun MainApp(
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
     val screenWidthPx = with(density) { screenWidth.toPx() }
     
-    // 当前页面状态：0-聊天页，1-设置页
+    // 当前页面状态：0-聊天页，1-设置页，2-AI创作页，3-智能体页
     val currentPage = remember { mutableStateOf(0) }
     
     // 从Repository获取深色模式设置
@@ -145,7 +145,10 @@ fun MainApp(
                         .fillMaxSize()
                         .offset { 
                             IntOffset(
-                                if (currentPage.value == 0) 0 else -screenWidthPx.roundToInt(), 
+                                if (currentPage.value == 0) 0 else 
+                                if (currentPage.value == 1) -screenWidthPx.roundToInt() else
+                                if (currentPage.value == 2) -(screenWidthPx * 2).roundToInt() else
+                                -(screenWidthPx * 3).roundToInt(), 
                                 0
                             ) 
                         }
@@ -204,6 +207,64 @@ fun MainApp(
                             )
                         }
                     }
+                    
+                    // AI 创作页面
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset((screenWidthPx * 2).roundToInt(), 0) }
+                    ) {
+                        HuaJuanTheme(darkTheme = darkMode.value) {
+                            AICreationScreen(
+                                onMenuClick = {
+                                    scope.launch {
+                                        if (drawerOffset.value == minDrawerOffset) {
+                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        } else {
+                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        }
+                                    }
+                                },
+                                onBack = { 
+                                    // 切换回聊天页面（无动画）
+                                    currentPage.value = 0
+                                    // 随后触发动画隐藏侧边栏
+                                    scope.launch {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    
+                    // 智能体页面
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset((screenWidthPx * 3).roundToInt(), 0) }
+                    ) {
+                        HuaJuanTheme(darkTheme = darkMode.value) {
+                            AgentScreen(
+                                onMenuClick = {
+                                    scope.launch {
+                                        if (drawerOffset.value == minDrawerOffset) {
+                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        } else {
+                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        }
+                                    }
+                                },
+                                onBack = { 
+                                    // 切换回聊天页面（无动画）
+                                    currentPage.value = 0
+                                    // 随后触发动画隐藏侧边栏
+                                    scope.launch {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
                 
                 // 遮罩层 - 直接应用于主页面容器之上
@@ -240,6 +301,22 @@ fun MainApp(
                     currentPage.value = 1
                     // 随后触发动画隐藏侧边栏
                     scope.launch { 
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onAICreationPageSelected = {
+                    // 切换到AI创作页面（无动画）
+                    currentPage.value = 2
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch {
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onAgentPageSelected = {
+                    // 切换到智能体页面（无动画）
+                    currentPage.value = 3
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch {
                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                     }
                 },
