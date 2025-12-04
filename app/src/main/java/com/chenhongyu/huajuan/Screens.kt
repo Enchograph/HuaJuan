@@ -730,7 +730,12 @@ fun ExpandedInputArea() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>, onBack: () -> Unit = {}) {
+fun SettingScreen(
+    repository: Repository, 
+    darkModeState: MutableState<Boolean>, 
+    onMenuClick: () -> Unit = {},
+    onBack: () -> Unit = {}
+) {
     var darkMode by remember { mutableStateOf(darkModeState.value) }
     var useCloudModel by remember { mutableStateOf(repository.getUseCloudModel()) }
     var serviceProvider by remember { mutableStateOf(repository.getServiceProvider()) }
@@ -755,8 +760,8 @@ fun SettingScreen(repository: Repository, darkModeState: MutableState<Boolean>, 
             TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    IconButton(onClick = onMenuClick) {
+                        Icon(Icons.Outlined.Menu, contentDescription = "打开侧边栏")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

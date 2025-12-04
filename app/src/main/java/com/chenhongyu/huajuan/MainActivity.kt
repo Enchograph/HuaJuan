@@ -60,6 +60,7 @@ fun MainApp(repository: Repository) {
     val screenWidth = configuration.screenWidthDp.dp
     val drawerWidth = screenWidth * 0.75f
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
+    val screenWidthPx = with(density) { screenWidth.toPx() }
     
     // 当前页面状态：0-聊天页，1-设置页
     val currentPage = remember { mutableStateOf(0) }
@@ -73,9 +74,6 @@ fun MainApp(repository: Repository) {
     val drawerOffset = remember { Animatable(-drawerWidthPx) }
     val maxDrawerOffset = 0f
     val minDrawerOffset = -drawerWidthPx
-    
-    // 计算主页面的偏移量（与抽屉联动）
-    val mainPageOffset = drawerOffset.value + drawerWidthPx
     
     // 计算遮罩透明度
     val scrimAlpha = (drawerOffset.value - minDrawerOffset) / (maxDrawerOffset - minDrawerOffset) * 0.3f
@@ -110,44 +108,83 @@ fun MainApp(repository: Repository) {
                 }
             )
     ) {
-        // 主页面内容
+        // 整体页面容器（包含所有主页面）
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(mainPageOffset.roundToInt(), 0) }
+                .offset { IntOffset((drawerOffset.value + drawerWidthPx).roundToInt(), 0) }
                 .background(scrimColor)
         ) {
-            HuaJuanTheme(darkTheme = darkMode.value) {
-                when (currentPage.value) {
-                    0 -> ChatScreen(
-                        onMenuClick = { 
-                            scope.launch {
-                                if (drawerOffset.value == minDrawerOffset) {
-                                    drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                } else {
-                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+            // 主页面容器
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                // 页面内容容器 - 使用偏移来切换页面
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { 
+                            IntOffset(
+                                if (currentPage.value == 0) 0 else -screenWidthPx.roundToInt(), 
+                                0
+                            ) 
+                        }
+                ) {
+                    // 聊天页面
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset(0, 0) }
+                    ) {
+                        HuaJuanTheme(darkTheme = darkMode.value) {
+                            ChatScreen(
+                                onMenuClick = { 
+                                    scope.launch {
+                                        if (drawerOffset.value == minDrawerOffset) {
+                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        } else {
+                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        }
+                                    }
+                                }, 
+                                appState, 
+                                darkMode.value, 
+                                repository
+                            )
+                        }
+                    }
+                    
+                    // 设置页面
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset(screenWidthPx.roundToInt(), 0) }
+                    ) {
+                        HuaJuanTheme(darkTheme = darkMode.value) {
+                            SettingScreen(
+                                repository, 
+                                darkMode,
+                                onMenuClick = {
+                                    scope.launch {
+                                        if (drawerOffset.value == minDrawerOffset) {
+                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        } else {
+                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                        }
+                                    }
+                                },
+                                onBack = { 
+                                    // 切换回聊天页面（无动画）
+                                    currentPage.value = 0
+                                    // 随后触发动画隐藏侧边栏
+                                    scope.launch {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
                                 }
-                            }
-                        }, 
-                        appState, 
-                        darkMode.value, 
-                        repository
-                    )
-                    1 -> SettingScreen(repository, darkMode, onBack = { currentPage.value = 0 })
-                    else -> ChatScreen(
-                        onMenuClick = { 
-                            scope.launch {
-                                if (drawerOffset.value == minDrawerOffset) {
-                                    drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                } else {
-                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                }
-                            }
-                        }, 
-                        appState, 
-                        darkMode.value, 
-                        repository
-                    )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -161,13 +198,17 @@ fun MainApp(repository: Repository) {
             SideDrawer(
                 onChatPageSelected = { conversationId -> 
                     appState.currentConversationId = conversationId
+                    // 切换到聊天页面（无动画）
                     currentPage.value = 0
+                    // 随后触发动画隐藏侧边栏
                     scope.launch { 
                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                     }
                 },
                 onSettingPageSelected = { 
+                    // 切换到设置页面（无动画）
                     currentPage.value = 1
+                    // 随后触发动画隐藏侧边栏
                     scope.launch { 
                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                     }
