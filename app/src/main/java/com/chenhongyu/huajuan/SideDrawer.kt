@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Repository
@@ -54,13 +55,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SideDrawer(
-    onChatPageSelected: (Long) -> Unit = {},
-    onSettingPageSelected: () -> Unit = {},
-    onAICreationPageSelected: () -> Unit = {},
-    onAgentPageSelected: () -> Unit = {},
-    conversations: List<Conversation> = emptyList(),
-    drawerWidth: androidx.compose.ui.unit.Dp = 300.dp,
-    darkTheme: Boolean = isSystemInDarkTheme()
+    onChatPageSelected: (String) -> Unit,  // 修改参数类型为String
+    onSettingPageSelected: () -> Unit,
+    onAICreationPageSelected: () -> Unit,
+    onAgentPageSelected: () -> Unit,
+    conversations: List<Conversation>,
+    drawerWidth: Dp,
+    darkTheme: Boolean
 ) {
     HuaJuanTheme(darkTheme = darkTheme) {
         ModalDrawerSheet(
@@ -99,13 +100,13 @@ fun SideDrawer(
 
                 // 底部用户栏 (始终置底)
                 ListItem(
-                    headlineContent = { 
+                    headlineContent = {
                         Text(
                             text = "用户名",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
-                        ) 
+                        )
                     },
                     leadingContent = {
                         Box(
@@ -116,7 +117,7 @@ fun SideDrawer(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "U", 
+                                text = "U",
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 style = MaterialTheme.typography.titleMedium
                             )
@@ -137,7 +138,7 @@ fun SideDrawer(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            
+
                             IconButton(
                                 onClick = {
                                     println("点击了通知按钮")
@@ -151,7 +152,7 @@ fun SideDrawer(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            
+
                             IconButton(
                                 onClick = {
                                     println("点击了设置按钮")
@@ -174,9 +175,9 @@ fun SideDrawer(
                     modifier = Modifier
                         .padding(horizontal = 8.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { 
+                        .clickable {
                             println("点击了底部用户栏")
-                            onSettingPageSelected() 
+                            onSettingPageSelected()
                         }
                         .padding(horizontal = 8.dp)
                         .align(Alignment.BottomCenter)
@@ -186,7 +187,7 @@ fun SideDrawer(
                 val listState = rememberLazyListState()
                 val scope = rememberCoroutineScope()
                 var showBackToTop by remember { mutableStateOf(false) }
-                
+
                 // 监听滚动状态以确定是否显示"回到花卷"按钮
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
@@ -194,7 +195,7 @@ fun SideDrawer(
                         showBackToTop = index >= 3 // 花卷项是第0项，AI创作是第1项，发现智能体是第2项
                     }
                 }
-                
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -210,12 +211,12 @@ fun SideDrawer(
                         ) {
                             // "花卷" - 聊天页面入口
                             ListItem(
-                                headlineContent = { 
+                                headlineContent = {
                                     Text(
                                         text = "花卷",
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
-                                    ) 
+                                    )
                                 },
                                 leadingContent = {
                                     Box(
@@ -238,20 +239,20 @@ fun SideDrawer(
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { 
+                                    .clickable {
                                         println("选择了花卷聊天")
-                                        onChatPageSelected(-1) // -1表示新建对话
+                                        onChatPageSelected("default") // 使用"default"表示默认对话
                                     }
                             )
-                            
+
                             // "AI 创作" - AI创作分享社区入口
                             ListItem(
-                                headlineContent = { 
+                                headlineContent = {
                                     Text(
                                         text = "AI 创作",
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
-                                    ) 
+                                    )
                                 },
                                 leadingContent = {
                                     Box(
@@ -274,20 +275,20 @@ fun SideDrawer(
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { 
+                                    .clickable {
                                         println("选择了AI创作")
                                         onAICreationPageSelected()
                                     }
                             )
-                            
+
                             // "发现智能体" - AI智能体选择页面入口
                             ListItem(
-                                headlineContent = { 
+                                headlineContent = {
                                     Text(
                                         text = "发现智能体",
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
-                                    ) 
+                                    )
                                 },
                                 leadingContent = {
                                     Box(
@@ -310,20 +311,20 @@ fun SideDrawer(
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { 
+                                    .clickable {
                                         println("选择了发现智能体")
                                         onAgentPageSelected()
                                     }
                             )
                         }
-                        
+
                         // 分割线
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
-                    
+
                     // 第三个区块：历史记录
                     item {
                         Text(
@@ -335,16 +336,16 @@ fun SideDrawer(
                                 .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
                         )
                     }
-                    
+
                     items(conversations) { conversation ->
                         ListItem(
-                            headlineContent = { 
+                            headlineContent = {
                                 Text(
                                     text = conversation.title,
                                     maxLines = 1,
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface
-                                ) 
+                                )
                             },
                             leadingContent = {
                                 Box(
@@ -368,15 +369,15 @@ fun SideDrawer(
                             modifier = Modifier
                                 .padding(horizontal = 8.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { 
-                                    println("选择了对话: ${conversation.title}")
-                                    onChatPageSelected(conversation.id) 
+                                .clickable {
+                                    println("DEBUG: Selected conversation in SideDrawer - Title: ${conversation.title}, ID: ${conversation.id}")
+                                    onChatPageSelected(conversation.id)
                                 }
                                 .padding(horizontal = 8.dp)
                         )
                     }
                 }
-                
+
                 // "回到花卷"浮动按钮
                 if (showBackToTop) {
                     FloatingActionButton(

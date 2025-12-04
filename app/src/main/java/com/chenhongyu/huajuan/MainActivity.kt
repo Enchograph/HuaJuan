@@ -38,6 +38,11 @@ import com.chenhongyu.huajuan.SideDrawer
 import com.chenhongyu.huajuan.AICreationScreen
 import com.chenhongyu.huajuan.AgentScreen
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -91,7 +96,26 @@ fun MainApp(
     // 从Repository获取深色模式设置
     val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
     
-    val appState = remember { AppState() }
+    // 初始化AppState，从Repository加载对话历史
+    var appState by remember {
+        val conversations = repository.getConversations()
+        println("DEBUG: Initializing AppState with ${conversations.size} conversations")
+        mutableStateOf(
+            AppState(
+                conversations = conversations,
+                currentConversationId = conversations.firstOrNull()?.id
+            )
+        )
+    }
+    
+    // 监听appState.currentConversationId的变化并重新加载对话列表
+    LaunchedEffect(appState.currentConversationId) {
+        println("DEBUG: AppState currentConversationId changed to: ${appState.currentConversationId}")
+        appState = appState.copy(
+            conversations = repository.getConversations()
+        )
+        println("DEBUG: Reloaded conversations, now has ${appState.conversations.size} conversations")
+    }
     
     // 抽屉状态和位置控制
     val drawerOffset = remember { Animatable(-drawerWidthPx) }
@@ -152,9 +176,9 @@ fun MainApp(
                         .offset { 
                             IntOffset(
                                 if (currentPage.value == 0) 0 else 
-                                if (currentPage.value == 1) -screenWidthPx.roundToInt() else
-                                if (currentPage.value == 2) -(screenWidthPx * 2).roundToInt() else
-                                -(screenWidthPx * 3).roundToInt(), 
+                                if (currentPage.value == 1) (-screenWidthPx).roundToInt() else
+                                if (currentPage.value == 2) (-(screenWidthPx * 2)).roundToInt() else
+                                (-(screenWidthPx * 3)).roundToInt(), 
                                 0
                             ) 
                         }
@@ -292,44 +316,57 @@ fun MainApp(
                 .fillMaxSize()
                 .offset { IntOffset(drawerOffset.value.roundToInt(), 0) }
         ) {
-            SideDrawer(
-                onChatPageSelected = { conversationId -> 
-                    appState.currentConversationId = conversationId
-                    // 切换到聊天页面（无动画）
-                    currentPage.value = 0
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch { 
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onSettingPageSelected = { 
-                    // 切换到设置页面（无动画）
-                    currentPage.value = 1
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch { 
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onAICreationPageSelected = {
-                    // 切换到AI创作页面（无动画）
-                    currentPage.value = 2
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch {
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                onAgentPageSelected = {
-                    // 切换到智能体页面（无动画）
-                    currentPage.value = 3
-                    // 随后触发动画隐藏侧边栏
-                    scope.launch {
-                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                    }
-                },
-                conversations = appState.conversations,
-                drawerWidth = drawerWidth,
-                darkTheme = darkMode.value
-            )
+            HuaJuanTheme(darkTheme = darkMode.value) {
+                SideDrawer(
+                    onChatPageSelected = { conversationId -> 
+                        println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
+                        // 正确设置当前对话ID
+                        appState = appState.copy(
+                            currentConversationId = if (conversationId == "default") null else conversationId
+                        )
+                        println("DEBUG: Set appState.currentConversationId to: ${appState.currentConversationId}")
+                        // 更新appState中的对话列表
+                        appState = appState.copy(
+                            conversations = repository.getConversations()
+                        )
+                        println("DEBUG: Updated appState.conversations, total conversations: ${appState.conversations.size}")
+                        // 切换到聊天页面（无动画）
+                        currentPage.value = 0
+                        println("DEBUG: Set currentPage to 0")
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch { 
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onSettingPageSelected = { 
+                        // 切换到设置页面（无动画）
+                        currentPage.value = 1
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch { 
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onAICreationPageSelected = {
+                        // 切换到AI创作页面（无动画）
+                        currentPage.value = 2
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch {
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    onAgentPageSelected = {
+                        // 切换到智能体页面（无动画）
+                        currentPage.value = 3
+                        // 随后触发动画隐藏侧边栏
+                        scope.launch {
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    },
+                    conversations = appState.conversations,
+                    drawerWidth = drawerWidth,
+                    darkTheme = darkMode.value
+                )
+            }
         }
         
         // 当侧边栏展开时，点击主页面露出的部分视为返回操作

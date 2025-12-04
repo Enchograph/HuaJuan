@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -57,9 +58,18 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
     
+    // 添加Gson库用于JSON序列化
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     // 添加Markdown渲染库
     implementation("com.mikepenz:multiplatform-markdown-renderer:0.29.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.29.0")
+    implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.29.0")
+    
+    // 添加Room数据库依赖 (使用较低版本以兼容当前Kotlin版本)
+    implementation("androidx.room:room-runtime:2.5.0")
+    implementation("androidx.room:room-ktx:2.5.0")
+    kapt("androidx.room:room-compiler:2.5.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

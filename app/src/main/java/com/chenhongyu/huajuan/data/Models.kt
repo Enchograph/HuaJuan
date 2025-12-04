@@ -1,9 +1,10 @@
 package com.chenhongyu.huajuan.data
 
 import java.util.Date
+import java.util.UUID
 
 data class Message(
-    val id: Long,
+    val id: String = UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
     val timestamp: Date
@@ -16,7 +17,7 @@ data class UserInfo(
 )
 
 data class Conversation(
-    val id: Long,
+    val id: String = UUID.randomUUID().toString(),
     val title: String,
     val lastMessage: String,
     val timestamp: Date
@@ -31,37 +32,11 @@ data class LocalModel(
 )
 
 data class AppState(
-    val conversations: List<Conversation> = listOf(
-        Conversation(
-            id = 1,
-            title = "历史对话 1",
-            lastMessage = "你好，请介绍一下你能做什么？",
-            timestamp = Date(System.currentTimeMillis() - 3600000) // 1小时前
-        ),
-        Conversation(
-            id = 2,
-            title = "历史对话 2",
-            lastMessage = "如何学习Jetpack Compose？",
-            timestamp = Date(System.currentTimeMillis() - 86400000) // 1天前
-        )
-    ),
-    var currentConversationId: Long? = 1
+    var conversations: List<Conversation> = listOf(),
+    var currentConversationId: String? = null
 )
 
 data class ChatState(
-    val messages: List<Message> = listOf(
-        Message(
-            id = 1,
-            text = "你好！我是花卷AI助手，有什么我可以帮你的吗？",
-            isUser = false,
-            timestamp = Date()
-        ),
-        Message(
-            id = 2,
-            text = "你好，请介绍一下你能做什么？",
-            isUser = true,
-            timestamp = Date(System.currentTimeMillis() - 120000) // 2分钟前
-        )
-    ),
+    val messages: List<Message> = listOf(),
     val inputText: String = ""
 )
