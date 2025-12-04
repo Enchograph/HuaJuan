@@ -370,7 +370,7 @@ fun SideDrawer(
                                 .padding(horizontal = 8.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
-                                    println("选择了对话: ${conversation.title}")
+                                    println("DEBUG: Selected conversation in SideDrawer - Title: ${conversation.title}, ID: ${conversation.id}")
                                     onChatPageSelected(conversation.id)
                                 }
                                 .padding(horizontal = 8.dp)

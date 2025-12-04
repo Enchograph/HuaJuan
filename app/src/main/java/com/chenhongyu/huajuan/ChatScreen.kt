@@ -83,12 +83,16 @@ fun ChatScreen(
     isDarkTheme: Boolean, 
     repository: Repository
 ) {
+    println("DEBUG: ChatScreen recomposed with currentConversationId: ${appState.currentConversationId}")
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
-    var chatState by remember { 
+    var chatState by remember(appState.currentConversationId ?: "default") { 
+        println("DEBUG: Initializing chatState for conversationId: ${appState.currentConversationId}")
+        val messages = repository.getMessages(appState.currentConversationId ?: "default")
+        println("DEBUG: Loaded ${messages.size} messages for conversationId: ${appState.currentConversationId}")
         mutableStateOf(
             ChatState(
-                messages = repository.getMessages(appState.currentConversationId ?: "default"),
+                messages = messages,
                 inputText = ""
             )
         ) 
@@ -99,12 +103,16 @@ fun ChatScreen(
     val dbMutex = remember { kotlinx.coroutines.sync.Mutex() }
     
     // 当前对话ID变化时重新加载消息
-    LaunchedEffect(appState.currentConversationId) {
+    LaunchedEffect(appState.currentConversationId ?: "default") {
+        println("DEBUG: LaunchedEffect triggered for conversationId: ${appState.currentConversationId}")
         val conversationId = appState.currentConversationId ?: "default"
+        val messages = repository.getMessages(conversationId)
+        println("DEBUG: LaunchedEffect loaded ${messages.size} messages for conversationId: $conversationId")
         chatState = chatState.copy(
-            messages = repository.getMessages(conversationId),
+            messages = messages,
             inputText = ""
         )
+        println("DEBUG: Updated chatState with new messages, total messages: ${chatState.messages.size}")
     }
     
     Scaffold(
@@ -115,6 +123,11 @@ fun ChatScreen(
                         Text(
                             text = "花卷",
                             fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "当前对话ID: ${appState.currentConversationId ?: "default"}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = repository.getSelectedModel(),
@@ -319,6 +332,7 @@ fun ChatContentArea(
     messages: List<Message>,
     modifier: Modifier = Modifier
 ) {
+    println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
     val scope = rememberCoroutineScope()
     val isDarkTheme = isSystemInDarkTheme()
     LazyColumn(
@@ -326,6 +340,14 @@ fun ChatContentArea(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(16.dp)
     ) {
+        // 显示当前消息数量的调试信息
+        item {
+            Text(
+                text = "消息数量: ${messages.size}",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
         items(messages) { message ->
             if (!message.isUser) {
                 // AI回复气泡

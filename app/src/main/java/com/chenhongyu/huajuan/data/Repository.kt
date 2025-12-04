@@ -111,11 +111,13 @@ class Repository(private val context: Context) {
     }
     
     fun getMessages(conversationId: String): List<Message> {
+        println("DEBUG: Repository.getMessages called for conversationId: $conversationId")
         // 为了向后兼容，仍然返回旧的Message类型
         return runBlocking {
             withContext(Dispatchers.IO) {
                 conversationDao.getAllConversations().first().find { it.id == conversationId } ?: run {
                     // 如果没有找到对应的对话，创建一个新的
+                    println("DEBUG: Conversation not found, creating new one for ID: $conversationId")
                     val newConversation = ConversationEntity(
                         id = conversationId,
                         title = "对话",
@@ -125,7 +127,7 @@ class Repository(private val context: Context) {
                     conversationDao.insertConversation(newConversation)
                 }
                 
-                messageDao.getMessagesByConversationId(conversationId).first().map { entity ->
+                val messages = messageDao.getMessagesByConversationId(conversationId).first().map { entity ->
                     Message(
                         id = entity.id,
                         text = entity.text,
@@ -133,6 +135,8 @@ class Repository(private val context: Context) {
                         timestamp = entity.timestamp
                     )
                 }
+                println("DEBUG: Returning ${messages.size} messages for conversationId: $conversationId")
+                messages
             }
         }
     }

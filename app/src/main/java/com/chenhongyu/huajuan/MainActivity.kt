@@ -97,11 +97,24 @@ fun MainApp(
     val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
     
     // 初始化AppState，从Repository加载对话历史
-    var appState = remember { 
-        AppState(
-            conversations = repository.getConversations(),
-            currentConversationId = repository.getConversations().firstOrNull()?.id
-        ) 
+    var appState by remember {
+        val conversations = repository.getConversations()
+        println("DEBUG: Initializing AppState with ${conversations.size} conversations")
+        mutableStateOf(
+            AppState(
+                conversations = conversations,
+                currentConversationId = conversations.firstOrNull()?.id
+            )
+        )
+    }
+    
+    // 监听appState.currentConversationId的变化并重新加载对话列表
+    LaunchedEffect(appState.currentConversationId) {
+        println("DEBUG: AppState currentConversationId changed to: ${appState.currentConversationId}")
+        appState = appState.copy(
+            conversations = repository.getConversations()
+        )
+        println("DEBUG: Reloaded conversations, now has ${appState.conversations.size} conversations")
     }
     
     // 抽屉状态和位置控制
@@ -306,11 +319,20 @@ fun MainApp(
             HuaJuanTheme(darkTheme = darkMode.value) {
                 SideDrawer(
                     onChatPageSelected = { conversationId -> 
-                        appState.currentConversationId = conversationId
+                        println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
+                        // 正确设置当前对话ID
+                        appState = appState.copy(
+                            currentConversationId = if (conversationId == "default") null else conversationId
+                        )
+                        println("DEBUG: Set appState.currentConversationId to: ${appState.currentConversationId}")
                         // 更新appState中的对话列表
-                        appState.conversations = repository.getConversations()
+                        appState = appState.copy(
+                            conversations = repository.getConversations()
+                        )
+                        println("DEBUG: Updated appState.conversations, total conversations: ${appState.conversations.size}")
                         // 切换到聊天页面（无动画）
                         currentPage.value = 0
+                        println("DEBUG: Set currentPage to 0")
                         // 随后触发动画隐藏侧边栏
                         scope.launch { 
                             drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
