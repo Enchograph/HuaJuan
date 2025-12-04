@@ -5,7 +5,6 @@ import com.chenhongyu.huajuan.network.OpenAiApiService
 import com.chenhongyu.huajuan.network.OpenAiRequest
 import com.chenhongyu.huajuan.network.Message as NetworkMessage
 import okhttp3.OkHttpClient
-import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -16,6 +15,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -220,120 +224,85 @@ class Repository(private val context: Context) {
         }
     }
     
-    // 创建Retrofit实例
-    private fun createRetrofitInstance(baseUrl: String): Retrofit {
+    // 创建OkHttpClient实例
+    private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
         
-        val okHttpClient = OkHttpClient.Builder()
+        return OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(loggingInterceptor)
             .build()
-        
-        return Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
     }
     
-    // 获取API服务实例
-    private fun getApiService(): OpenAiApiService {
+    // 创建API服务
+    private fun createApiService(): OpenAiApiService {
+        val retrofit = Retrofit.Builder()
+            .baseUrl(getBaseUrl())
+            .client(createOkHttpClient())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        
+        return retrofit.create(OpenAiApiService::class.java)
+    }
+    
+    // 获取基础URL
+    private fun getBaseUrl(): String {
         val serviceProvider = getServiceProvider()
-        val baseUrl = when (serviceProvider) {
+        return when (serviceProvider) {
             "OpenAI" -> "https://api.openai.com/"
             "Azure" -> "https://YOUR_RESOURCE_NAME.openai.azure.com/" // 需要用户在Azure门户获取
             "Anthropic" -> "https://api.anthropic.com/"
             "自定义" -> getCustomApiUrl().ifEmpty { "https://api.openai.com/" }
             else -> "https://api.openai.com/"
         }
-        
-        return createRetrofitInstance(baseUrl).create(OpenAiApiService::class.java)
     }
     
-    // 流式获取AI响应
-    suspend fun streamAIResponse(messages: List<Message>): kotlinx.coroutines.flow.Flow<String> {
-        return kotlinx.coroutines.flow.flow {
-            try {
-                val apiKey = getApiKey()
-                if (apiKey.isEmpty()) {
-                    emit("错误：API密钥未设置")
-                    return@flow
-                }
-                
-                val selectedModel = getSelectedModel()
-                val openAiMessages = messages.map { 
-                    NetworkMessage(
-                        role = if (it.isUser) "user" else "assistant",
-                        content = it.text
-                    )
-                }
-                
-                val request = OpenAiRequest(
-                    model = when (selectedModel) {
-                        "GPT-4" -> "gpt-4"
-                        "GPT-3.5 Turbo" -> "gpt-3.5-turbo"
-                        "Claude 2" -> "claude-2"
-                        "Claude Instant" -> "claude-instant"
-                        else -> "gpt-3.5-turbo"
-                    },
-                    messages = openAiMessages,
-                    temperature = 0.7f,
-                    stream = true
-                )
-                
-                val apiService = getApiService()
-                val response = apiService.streamChatCompletion("Bearer $apiKey", request = request)
-                
-                if (response.isSuccessful && response.body() != null) {
-                    val responseBody = response.body()!!
-                    val source = responseBody.source()
-                    
-                    while (!source.exhausted()) {
-                        val line = source.readUtf8Line()
-                        line?.let {
-                            if (it.startsWith("data: ")) {
-                                val jsonData = it.substring(6)
-                                if (jsonData == "[DONE]") {
-                                    return@flow
-                                }
-                                
-                                try {
-                                    // 简化的解析，实际应该用JSON解析库
-                                    // 这里只是示例，实际需要更完善的JSON解析
-                                    val content = parseContentFromJson(jsonData)
-                                    if (content.isNotEmpty()) {
-                                        emit(content)
-                                    }
-                                } catch (e: Exception) {
-                                    // 忽略解析错误
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    emit("错误：${response.message()}")
-                }
-            } catch (e: Exception) {
-                emit("错误：${e.message}")
+    // 获取AI响应
+    suspend fun getAIResponse(messages: List<Message>): String {
+        try {
+            val apiKey = getApiKey()
+            if (apiKey.isEmpty()) {
+                return "错误：API密钥未设置"
             }
+            
+            val selectedModel = getSelectedModel()
+            val openAiMessages = messages.map { 
+                NetworkMessage(
+                    role = if (it.isUser) "user" else "assistant",
+                    content = it.text
+                )
+            }
+            
+            // 构造请求对象
+            val request = OpenAiRequest(
+                model = when (selectedModel) {
+                    "GPT-4" -> "gpt-4"
+                    "GPT-3.5 Turbo" -> "gpt-3.5-turbo"
+                    else -> "gpt-3.5-turbo"
+                },
+                messages = openAiMessages,
+                temperature = 0.7f
+            )
+            
+            val apiService = createApiService()
+            val response = apiService.getChatCompletion(
+                authorization = "Bearer $apiKey",
+                request = request
+            )
+            
+            if (response.isSuccessful) {
+                val openAiResponse = response.body()
+                return openAiResponse?.choices?.firstOrNull()?.message?.content ?: ""
+            } else {
+                return "错误：HTTP ${response.code()} - ${response.message()}"
+            }
+        } catch (e: Exception) {
+            return "错误：${e.message ?: e.javaClass.simpleName}"
         }
     }
     
-    // 解析OpenAI流式响应中的内容
-    private fun parseContentFromJson(jsonData: String): String {
-        // 简化的JSON解析，实际应该用专门的JSON库
-        // 查找 "content":"..." 模式
-        val contentPattern = """"content"\s*:\s*"([^"]*)""""
-        val regex = Regex(contentPattern)
-        val matchResult = regex.find(jsonData)
-        return matchResult?.groups?.get(1)?.value?.replace("\\n", "\n") ?: ""
-    }
-    
-    suspend fun getAIResponse(prompt: String): String {
-        kotlinx.coroutines.delay(1000) // 模拟网络延迟
-        return "这是模拟的AI回复: $prompt"
-    }
+
 }

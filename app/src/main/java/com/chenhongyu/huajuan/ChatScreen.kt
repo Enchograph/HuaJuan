@@ -226,9 +226,8 @@ fun ChatScreen(
                             }
                         }
                         
-                        // 调用AI API获取回复（流式）
+                        // 调用AI API获取回复
                         scope.launch {
-                            var accumulatedResponse = ""
                             // 使用UUID确保AI消息ID唯一性
                             val aiMessageId = java.util.UUID.randomUUID().toString()
 
@@ -257,22 +256,23 @@ fun ChatScreen(
                                 }
                             }
 
-                            // 流式接收响应
+                            // 获取AI响应
                             try {
-                                repository.streamAIResponse(messagesWithAi).collect { chunk -> 
-                                    accumulatedResponse += chunk
-                                    // 更新消息内容
-                                    val updatedMessages = chatState.messages.map { message ->
-                                        if (message.id == aiMessageId) {
-                                            message.copy(text = accumulatedResponse)
-                                        } else {
-                                            message
-                                        }
-                                    }
-                                    chatState = chatState.copy(messages = updatedMessages)
-                                }
+                                // 只传递用户消息给AI，排除初始的空AI消息
+                                val userMessagesOnly = updatedMessages.filter { it.isUser }
+                                val aiResponse = repository.getAIResponse(userMessagesOnly)
                                 
-                                // 流结束后一次性保存所有消息
+                                // 更新消息内容
+                                val updatedMessages = chatState.messages.map { message ->
+                                    if (message.id == aiMessageId) {
+                                        message.copy(text = aiResponse)
+                                    } else {
+                                        message
+                                    }
+                                }
+                                chatState = chatState.copy(messages = updatedMessages)
+                                
+                                // 保存所有消息
                                 dbMutex.lock()
                                 try {
                                     repository.saveMessages(currentConversationId, chatState.messages)
@@ -281,10 +281,10 @@ fun ChatScreen(
                                 }
 
                                 // 更新对话列表中的最后消息为AI回复
-                                if (accumulatedResponse.isNotEmpty()) {
+                                if (aiResponse.isNotEmpty()) {
                                     dbMutex.lock()
                                     try {
-                                        repository.updateLastMessage(currentConversationId, accumulatedResponse)
+                                        repository.updateLastMessage(currentConversationId, aiResponse)
                                         // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
                                         appState.conversations = repository.getConversations()
                                     } finally {

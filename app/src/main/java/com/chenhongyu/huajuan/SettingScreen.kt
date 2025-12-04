@@ -410,7 +410,13 @@ fun SettingScreen(
                                 onClick = {
                                     // 在实际应用中，这里会测试API连接
                                     scope.launch {
-                                        val response = repository.getAIResponse("Hello, test connection!")
+                                        val testMessage = com.chenhongyu.huajuan.data.Message(
+                                            id = "test-message",
+                                            text = "Hello, test connection!",
+                                            isUser = true,
+                                            timestamp = java.util.Date()
+                                        )
+                                        val response = repository.getAIResponse(listOf(testMessage))
                                         Toast.makeText(context, response, Toast.LENGTH_LONG).show()
                                     }
                                 },
