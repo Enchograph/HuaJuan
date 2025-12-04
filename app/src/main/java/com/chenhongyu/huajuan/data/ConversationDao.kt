@@ -13,7 +13,7 @@ interface ConversationDao {
     fun getAllConversations(): Flow<List<ConversationEntity>>
 
     @Query("SELECT * FROM conversations WHERE id = :conversationId")
-    fun getConversationById(conversationId: Long): ConversationEntity?
+    fun getConversationById(conversationId: String): ConversationEntity?
 
     @Insert
     fun insertConversation(conversation: ConversationEntity): Long
@@ -25,5 +25,5 @@ interface ConversationDao {
     fun deleteConversation(conversation: ConversationEntity): Int
 
     @Query("DELETE FROM conversations WHERE id = :conversationId")
-    fun deleteConversationById(conversationId: Long): Int
+    fun deleteConversationById(conversationId: String): Int
 }

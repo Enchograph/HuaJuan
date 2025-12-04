@@ -1,9 +1,10 @@
 package com.chenhongyu.huajuan.data
 
 import java.util.Date
+import java.util.UUID
 
 data class Message(
-    val id: Long,
+    val id: String = UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
     val timestamp: Date
@@ -16,7 +17,7 @@ data class UserInfo(
 )
 
 data class Conversation(
-    val id: Long,
+    val id: String = UUID.randomUUID().toString(),
     val title: String,
     val lastMessage: String,
     val timestamp: Date
@@ -32,7 +33,7 @@ data class LocalModel(
 
 data class AppState(
     var conversations: List<Conversation> = listOf(),
-    var currentConversationId: Long? = null
+    var currentConversationId: String? = null
 )
 
 data class ChatState(

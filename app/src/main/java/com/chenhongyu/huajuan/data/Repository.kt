@@ -106,27 +106,52 @@ class Repository(private val context: Context) {
         }
     }
     
-    fun getMessagesFlow(conversationId: Long): Flow<List<MessageEntity>> {
+    fun getMessagesFlow(conversationId: String): Flow<List<MessageEntity>> {
         return messageDao.getMessagesByConversationId(conversationId)
     }
     
-    fun getMessages(conversationId: Long): List<Message> {
+    fun getMessages(conversationId: String): List<Message> {
         // 为了向后兼容，仍然返回旧的Message类型
         return runBlocking {
-            messageDao.getMessagesByConversationId(conversationId).first().map { entity ->
-                Message(
-                    id = entity.id,
-                    text = entity.text,
-                    isUser = entity.isUser,
-                    timestamp = entity.timestamp
-                )
+            withContext(Dispatchers.IO) {
+                conversationDao.getAllConversations().first().find { it.id == conversationId } ?: run {
+                    // 如果没有找到对应的对话，创建一个新的
+                    val newConversation = ConversationEntity(
+                        id = conversationId,
+                        title = "对话",
+                        lastMessage = "",
+                        timestamp = java.util.Date()
+                    )
+                    conversationDao.insertConversation(newConversation)
+                }
+                
+                messageDao.getMessagesByConversationId(conversationId).first().map { entity ->
+                    Message(
+                        id = entity.id,
+                        text = entity.text,
+                        isUser = entity.isUser,
+                        timestamp = entity.timestamp
+                    )
+                }
             }
         }
     }
     
-    suspend fun saveMessages(conversationId: Long, messages: List<Message>) {
+    suspend fun saveMessages(conversationId: String, messages: List<Message>) {
         // 在IO线程中执行数据库操作
         withContext(Dispatchers.IO) {
+            // 确保对话存在
+            val conversationExists = conversationDao.getAllConversations().first().any { it.id == conversationId }
+            if (!conversationExists) {
+                val newConversation = ConversationEntity(
+                    id = conversationId,
+                    title = "对话",
+                    lastMessage = "",
+                    timestamp = java.util.Date()
+                )
+                conversationDao.insertConversation(newConversation)
+            }
+            
             // 删除该对话的所有现有消息
             messageDao.deleteMessagesByConversationId(conversationId)
             
@@ -147,8 +172,7 @@ class Repository(private val context: Context) {
     suspend fun createNewConversation(title: String): Conversation {
         // 在IO线程中执行数据库操作
         return withContext(Dispatchers.IO) {
-            val conversations = getConversations()
-            val newId = if (conversations.isEmpty()) 1 else (conversations.maxOfOrNull { it.id } ?: 0) + 1
+            val newId = java.util.UUID.randomUUID().toString()
             val newConversationEntity = ConversationEntity(
                 id = newId,
                 title = title,
@@ -167,7 +191,7 @@ class Repository(private val context: Context) {
         }
     }
     
-    suspend fun deleteConversation(conversationId: Long) {
+    suspend fun deleteConversation(conversationId: String) {
         // 在IO线程中执行数据库操作
         withContext(Dispatchers.IO) {
             // 删除对话中的所有消息
@@ -178,7 +202,7 @@ class Repository(private val context: Context) {
         }
     }
     
-    suspend fun updateLastMessage(conversationId: Long, lastMessage: String) {
+    suspend fun updateLastMessage(conversationId: String, lastMessage: String) {
         // 在IO线程中执行数据库操作
         withContext(Dispatchers.IO) {
             val conversation = conversationDao.getConversationById(conversationId)

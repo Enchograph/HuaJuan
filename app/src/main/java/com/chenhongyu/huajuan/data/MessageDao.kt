@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
-    fun getMessagesByConversationId(conversationId: Long): Flow<List<MessageEntity>>
+    fun getMessagesByConversationId(conversationId: String): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE id = :messageId")
-    fun getMessageById(messageId: Long): MessageEntity?
+    fun getMessageById(messageId: String): MessageEntity?
 
     @Insert
     fun insertMessage(message: MessageEntity): Long
@@ -28,5 +28,5 @@ interface MessageDao {
     fun deleteMessage(message: MessageEntity): Int
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
-    fun deleteMessagesByConversationId(conversationId: Long): Int
+    fun deleteMessagesByConversationId(conversationId: String): Int
 }

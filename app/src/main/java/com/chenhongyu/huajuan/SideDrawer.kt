@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Repository
@@ -54,13 +55,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SideDrawer(
-    onChatPageSelected: (Long) -> Unit = {},
-    onSettingPageSelected: () -> Unit = {},
-    onAICreationPageSelected: () -> Unit = {},
-    onAgentPageSelected: () -> Unit = {},
-    conversations: List<Conversation> = emptyList(),
-    drawerWidth: androidx.compose.ui.unit.Dp = 300.dp,
-    darkTheme: Boolean = isSystemInDarkTheme()
+    onChatPageSelected: (String) -> Unit,  // 修改参数类型为String
+    onSettingPageSelected: () -> Unit,
+    onAICreationPageSelected: () -> Unit,
+    onAgentPageSelected: () -> Unit,
+    conversations: List<Conversation>,
+    drawerWidth: Dp,
+    darkTheme: Boolean
 ) {
     HuaJuanTheme(darkTheme = darkTheme) {
         ModalDrawerSheet(
@@ -240,7 +241,7 @@ fun SideDrawer(
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         println("选择了花卷聊天")
-                                        onChatPageSelected(-1) // -1表示新建对话
+                                        onChatPageSelected("default") // 使用"default"表示默认对话
                                     }
                             )
 

@@ -33,13 +33,13 @@ class ChatHistoryManager(private val context: Context) {
     }
     
     // 保存特定对话的消息
-    fun saveMessages(conversationId: Long, messages: List<Message>) {
+    fun saveMessages(conversationId: String, messages: List<Message>) {
         val json = gson.toJson(messages)
         prefs.edit().putString("${MESSAGES_PREFIX}$conversationId", json).apply()
     }
     
     // 获取特定对话的消息
-    fun getMessages(conversationId: Long): List<Message> {
+    fun getMessages(conversationId: String): List<Message> {
         val json = prefs.getString("${MESSAGES_PREFIX}$conversationId", null)
         return if (json != null) {
             val type = object : TypeToken<List<Message>>() {}.type
@@ -51,7 +51,7 @@ class ChatHistoryManager(private val context: Context) {
     }
     
     // 删除特定对话及其消息
-    fun deleteConversation(conversationId: Long) {
+    fun deleteConversation(conversationId: String) {
         prefs.edit().remove("${MESSAGES_PREFIX}$conversationId").apply()
         
         // 更新对话列表
@@ -70,7 +70,7 @@ class ChatHistoryManager(private val context: Context) {
     // 创建新对话
     fun createNewConversation(title: String): Conversation {
         val conversations = getConversations().toMutableList()
-        val newId = if (conversations.isEmpty()) 1 else (conversations.maxOfOrNull { it.id } ?: 0) + 1
+        val newId = java.util.UUID.randomUUID().toString()
         val newConversation = Conversation(
             id = newId,
             title = title,
@@ -83,7 +83,7 @@ class ChatHistoryManager(private val context: Context) {
     }
     
     // 更新对话的最后消息
-    fun updateLastMessage(conversationId: Long, lastMessage: String) {
+    fun updateLastMessage(conversationId: String, lastMessage: String) {
         val conversations = getConversations().toMutableList()
         val updatedConversations = conversations.map { conversation ->
             if (conversation.id == conversationId) {

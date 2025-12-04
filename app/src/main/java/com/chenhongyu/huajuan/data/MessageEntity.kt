@@ -6,8 +6,8 @@ import java.util.Date
 
 @Entity(tableName = "messages")
 data class MessageEntity(
-    @PrimaryKey val id: Long,
-    val conversationId: Long,
+    @PrimaryKey val id: String,
+    val conversationId: String,
     val text: String,
     val isUser: Boolean,
     val timestamp: Date

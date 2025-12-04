@@ -88,7 +88,7 @@ fun ChatScreen(
     var chatState by remember { 
         mutableStateOf(
             ChatState(
-                messages = repository.getMessages(appState.currentConversationId ?: 1),
+                messages = repository.getMessages(appState.currentConversationId ?: "default"),
                 inputText = ""
             )
         ) 
@@ -100,7 +100,7 @@ fun ChatScreen(
     
     // 当前对话ID变化时重新加载消息
     LaunchedEffect(appState.currentConversationId) {
-        val conversationId = appState.currentConversationId ?: 1
+        val conversationId = appState.currentConversationId ?: "default"
         chatState = chatState.copy(
             messages = repository.getMessages(conversationId),
             inputText = ""
@@ -174,9 +174,9 @@ fun ChatScreen(
                 },
                 onSendMessage = { text ->
                     if (text.isNotBlank()) {
-                        // 创建用户消息，使用nanoTime确保ID唯一性
+                        // 创建用户消息，使用UUID确保ID唯一性
                         val userMessage = Message(
-                            id = System.nanoTime(),
+                            id = java.util.UUID.randomUUID().toString(),
                             text = text,
                             isUser = true,
                             timestamp = Date()
@@ -191,7 +191,7 @@ fun ChatScreen(
                         
                         // 保存用户消息
                         scope.launch {
-                            val conversationId = appState.currentConversationId ?: 1
+                            val conversationId = appState.currentConversationId ?: "default"
                             dbMutex.lock()
                             try {
                                 repository.saveMessages(conversationId, updatedMessages)
@@ -213,8 +213,8 @@ fun ChatScreen(
                         // 调用AI API获取回复（流式）
                         scope.launch {
                             var accumulatedResponse = ""
-                            // 使用nanoTime确保AI消息ID唯一性
-                            val aiMessageId = System.nanoTime() + 1
+                            // 使用UUID确保AI消息ID唯一性
+                            val aiMessageId = java.util.UUID.randomUUID().toString()
 
                             // 创建一个初始的AI消息
                             val initialAiMessage = Message(
@@ -231,7 +231,7 @@ fun ChatScreen(
                             )
 
                             // 保存带AI初始消息的状态
-                            val currentConversationId = appState.currentConversationId ?: 1
+                            val currentConversationId = appState.currentConversationId ?: "default"
                             scope.launch {
                                 dbMutex.lock()
                                 try {
