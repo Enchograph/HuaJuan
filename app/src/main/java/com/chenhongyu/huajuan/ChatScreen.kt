@@ -82,8 +82,24 @@ fun ChatScreen(
 ) {
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
-    var chatState by remember { mutableStateOf(ChatState()) }
+    var chatState by remember { 
+        mutableStateOf(
+            ChatState(
+                messages = repository.getMessages(appState.currentConversationId ?: 1),
+                inputText = ""
+            )
+        ) 
+    }
     val context = LocalContext.current
+    
+    // 当前对话ID变化时重新加载消息
+    LaunchedEffect(appState.currentConversationId) {
+        val conversationId = appState.currentConversationId ?: 1
+        chatState = chatState.copy(
+            messages = repository.getMessages(conversationId),
+            inputText = ""
+        )
+    }
     
     Scaffold(
         topBar = {
@@ -110,8 +126,17 @@ fun ChatScreen(
                     IconButton(onClick = { 
                         /* 新建对话 */
                         println("新建对话按钮被点击")
+                        // 创建新对话
+                        val newConversation = repository.createNewConversation("新对话")
+                        appState.currentConversationId = newConversation.id
+                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                        appState.conversations = repository.getConversations()
+                        
                         // 清空聊天记录
                         chatState = ChatState()
+                        
+                        // 保存空消息列表到新对话
+                        repository.saveMessages(newConversation.id, emptyList())
                     }) {
                         Icon(Icons.Outlined.Create, contentDescription = "新建对话")
                     }
@@ -143,10 +168,20 @@ fun ChatScreen(
                         )
                         
                         // 更新聊天状态
+                        val updatedMessages = chatState.messages + userMessage
                         chatState = chatState.copy(
-                            messages = chatState.messages + userMessage,
+                            messages = updatedMessages,
                             inputText = ""
                         )
+                        
+                        // 保存用户消息
+                        val conversationId = appState.currentConversationId ?: 1
+                        repository.saveMessages(conversationId, updatedMessages)
+                        
+                        // 更新对话列表中的最后消息
+                        repository.updateLastMessage(conversationId, text)
+                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                        appState.conversations = repository.getConversations()
                         
                         // 调用AI API获取回复（流式）
                         scope.launch {
@@ -162,22 +197,52 @@ fun ChatScreen(
                             )
                             
                             // 添加初始消息到状态
+                            val messagesWithAi = updatedMessages + initialAiMessage
                             chatState = chatState.copy(
-                                messages = chatState.messages + initialAiMessage
+                                messages = messagesWithAi
                             )
                             
+                            // 保存带AI初始消息的状态
+                            repository.saveMessages(conversationId, messagesWithAi)
+                            
                             // 流式接收响应
-                            repository.streamAIResponse(text).collect { chunk -> 
-                                accumulatedResponse += chunk
-                                // 更新消息内容
+                            try {
+                                repository.streamAIResponse(messagesWithAi).collect { chunk -> 
+                                    accumulatedResponse += chunk
+                                    // 更新消息内容
+                                    val updatedMessages = chatState.messages.map { message ->
+                                        if (message.id == aiMessageId) {
+                                            message.copy(text = accumulatedResponse)
+                                        } else {
+                                            message
+                                        }
+                                    }
+                                    chatState = chatState.copy(messages = updatedMessages)
+                                    
+                                    // 保存更新后的消息
+                                    repository.saveMessages(conversationId, updatedMessages)
+                                }
+                                
+                                // 更新对话列表中的最后消息为AI回复
+                                if (accumulatedResponse.isNotEmpty()) {
+                                    repository.updateLastMessage(conversationId, accumulatedResponse)
+                                    // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                                    appState.conversations = repository.getConversations()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "获取AI回复失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                // 更新消息内容为错误信息
                                 val updatedMessages = chatState.messages.map { message ->
                                     if (message.id == aiMessageId) {
-                                        message.copy(text = accumulatedResponse)
+                                        message.copy(text = "获取回复失败: ${e.message}")
                                     } else {
                                         message
                                     }
                                 }
                                 chatState = chatState.copy(messages = updatedMessages)
+                                
+                                // 保存错误消息
+                                repository.saveMessages(conversationId, updatedMessages)
                             }
                         }
                     }

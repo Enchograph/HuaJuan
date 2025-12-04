@@ -57,9 +57,13 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
     
+    // 添加Gson库用于JSON序列化
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     // 添加Markdown渲染库
     implementation("com.mikepenz:multiplatform-markdown-renderer:0.29.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.29.0")
+    implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.29.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

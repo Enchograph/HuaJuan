@@ -31,7 +31,7 @@ data class LocalModel(
 )
 
 data class AppState(
-    val conversations: List<Conversation> = listOf(
+    var conversations: List<Conversation> = listOf(
         Conversation(
             id = 1,
             title = "历史对话 1",

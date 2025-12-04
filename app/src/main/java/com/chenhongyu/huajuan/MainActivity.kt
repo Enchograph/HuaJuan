@@ -91,7 +91,13 @@ fun MainApp(
     // 从Repository获取深色模式设置
     val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
     
-    val appState = remember { AppState() }
+    // 初始化AppState，从Repository加载对话历史
+    var appState = remember { 
+        AppState(
+            conversations = repository.getConversations(),
+            currentConversationId = repository.getConversations().firstOrNull()?.id
+        ) 
+    }
     
     // 抽屉状态和位置控制
     val drawerOffset = remember { Animatable(-drawerWidthPx) }
@@ -295,6 +301,8 @@ fun MainApp(
             SideDrawer(
                 onChatPageSelected = { conversationId -> 
                     appState.currentConversationId = conversationId
+                    // 更新appState中的对话列表
+                    appState.conversations = repository.getConversations()
                     // 切换到聊天页面（无动画）
                     currentPage.value = 0
                     // 随后触发动画隐藏侧边栏
