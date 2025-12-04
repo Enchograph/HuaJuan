@@ -48,6 +48,9 @@ import androidx.compose.ui.window.Dialog
 import com.chenhongyu.huajuan.data.Message
 import com.chenhongyu.huajuan.data.ChatState
 import com.chenhongyu.huajuan.data.AppState
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlin.math.roundToInt
 
 fun formatTime(date: Date): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -92,6 +95,9 @@ fun ChatScreen(
     }
     val context = LocalContext.current
     
+    // 数据库操作互斥锁，防止并发访问
+    val dbMutex = remember { kotlinx.coroutines.sync.Mutex() }
+    
     // 当前对话ID变化时重新加载消息
     LaunchedEffect(appState.currentConversationId) {
         val conversationId = appState.currentConversationId ?: 1
@@ -127,16 +133,25 @@ fun ChatScreen(
                         /* 新建对话 */
                         println("新建对话按钮被点击")
                         // 创建新对话
-                        val newConversation = repository.createNewConversation("新对话")
-                        appState.currentConversationId = newConversation.id
-                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
-                        appState.conversations = repository.getConversations()
-                        
-                        // 清空聊天记录
-                        chatState = ChatState()
-                        
-                        // 保存空消息列表到新对话
-                        repository.saveMessages(newConversation.id, emptyList())
+                        scope.launch {
+                            val newConversation = repository.createNewConversation("新对话")
+                            
+                            // 先保存空消息列表到新对话
+                            dbMutex.lock()
+                            try {
+                                repository.saveMessages(newConversation.id, emptyList())
+                            } finally {
+                                dbMutex.unlock()
+                            }
+                            
+                            // 然后更新当前对话ID，触发LaunchedEffect重新加载消息
+                            appState.currentConversationId = newConversation.id
+                            // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                            appState.conversations = repository.getConversations()
+                            
+                            // 清空聊天记录
+                            chatState = ChatState()
+                        }
                     }) {
                         Icon(Icons.Outlined.Create, contentDescription = "新建对话")
                     }
@@ -159,9 +174,9 @@ fun ChatScreen(
                 },
                 onSendMessage = { text ->
                     if (text.isNotBlank()) {
-                        // 创建用户消息
+                        // 创建用户消息，使用nanoTime确保ID唯一性
                         val userMessage = Message(
-                            id = System.currentTimeMillis(),
+                            id = System.nanoTime(),
                             text = text,
                             isUser = true,
                             timestamp = Date()
@@ -175,19 +190,32 @@ fun ChatScreen(
                         )
                         
                         // 保存用户消息
-                        val conversationId = appState.currentConversationId ?: 1
-                        repository.saveMessages(conversationId, updatedMessages)
-                        
-                        // 更新对话列表中的最后消息
-                        repository.updateLastMessage(conversationId, text)
-                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
-                        appState.conversations = repository.getConversations()
+                        scope.launch {
+                            val conversationId = appState.currentConversationId ?: 1
+                            dbMutex.lock()
+                            try {
+                                repository.saveMessages(conversationId, updatedMessages)
+                            } finally {
+                                dbMutex.unlock()
+                            }
+                            
+                            // 更新对话列表中的最后消息
+                            dbMutex.lock()
+                            try {
+                                repository.updateLastMessage(conversationId, text)
+                                // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                                appState.conversations = repository.getConversations()
+                            } finally {
+                                dbMutex.unlock()
+                            }
+                        }
                         
                         // 调用AI API获取回复（流式）
                         scope.launch {
                             var accumulatedResponse = ""
-                            val aiMessageId = System.currentTimeMillis() + 1
-                            
+                            // 使用nanoTime确保AI消息ID唯一性
+                            val aiMessageId = System.nanoTime() + 1
+
                             // 创建一个初始的AI消息
                             val initialAiMessage = Message(
                                 id = aiMessageId,
@@ -195,16 +223,24 @@ fun ChatScreen(
                                 isUser = false,
                                 timestamp = Date()
                             )
-                            
+
                             // 添加初始消息到状态
                             val messagesWithAi = updatedMessages + initialAiMessage
                             chatState = chatState.copy(
                                 messages = messagesWithAi
                             )
-                            
+
                             // 保存带AI初始消息的状态
-                            repository.saveMessages(conversationId, messagesWithAi)
-                            
+                            val currentConversationId = appState.currentConversationId ?: 1
+                            scope.launch {
+                                dbMutex.lock()
+                                try {
+                                    repository.saveMessages(currentConversationId, messagesWithAi)
+                                } finally {
+                                    dbMutex.unlock()
+                                }
+                            }
+
                             // 流式接收响应
                             try {
                                 repository.streamAIResponse(messagesWithAi).collect { chunk -> 
@@ -218,16 +254,26 @@ fun ChatScreen(
                                         }
                                     }
                                     chatState = chatState.copy(messages = updatedMessages)
-                                    
-                                    // 保存更新后的消息
-                                    repository.saveMessages(conversationId, updatedMessages)
                                 }
                                 
+                                // 流结束后一次性保存所有消息
+                                dbMutex.lock()
+                                try {
+                                    repository.saveMessages(currentConversationId, chatState.messages)
+                                } finally {
+                                    dbMutex.unlock()
+                                }
+
                                 // 更新对话列表中的最后消息为AI回复
                                 if (accumulatedResponse.isNotEmpty()) {
-                                    repository.updateLastMessage(conversationId, accumulatedResponse)
-                                    // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
-                                    appState.conversations = repository.getConversations()
+                                    dbMutex.lock()
+                                    try {
+                                        repository.updateLastMessage(currentConversationId, accumulatedResponse)
+                                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
+                                        appState.conversations = repository.getConversations()
+                                    } finally {
+                                        dbMutex.unlock()
+                                    }
                                 }
                             } catch (e: Exception) {
                                 Toast.makeText(context, "获取AI回复失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -240,9 +286,14 @@ fun ChatScreen(
                                     }
                                 }
                                 chatState = chatState.copy(messages = updatedMessages)
-                                
+
                                 // 保存错误消息
-                                repository.saveMessages(conversationId, updatedMessages)
+                                dbMutex.lock()
+                                try {
+                                    repository.saveMessages(currentConversationId, updatedMessages)
+                                } finally {
+                                    dbMutex.unlock()
+                                }
                             }
                         }
                     }

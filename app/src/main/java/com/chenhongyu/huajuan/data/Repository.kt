@@ -10,6 +10,12 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import androidx.room.Room
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -21,8 +27,10 @@ class Repository(private val context: Context) {
     // 获取SharedPreferences实例
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     
-    // 聊天历史管理器
-    private val chatHistoryManager = ChatHistoryManager(context)
+    // Room数据库实例
+    private val database = AppDatabase.getDatabase(context)
+    private val conversationDao = database.conversationDao()
+    private val messageDao = database.messageDao()
     
     /**
      * 获取暗色模式设置
@@ -79,33 +87,109 @@ class Repository(private val context: Context) {
         prefs.edit().putString("selected_model", selectedModel).apply()
     }
     
-    // 聊天历史相关方法
-    fun saveConversations(conversations: List<Conversation>) {
-        chatHistoryManager.saveConversations(conversations)
+    // 聊天历史相关方法 - 使用Room数据库
+    fun getConversationsFlow(): Flow<List<ConversationEntity>> {
+        return conversationDao.getAllConversations()
     }
     
     fun getConversations(): List<Conversation> {
-        return chatHistoryManager.getConversations()
+        // 为了向后兼容，仍然返回旧的Conversation类型
+        return runBlocking {
+            conversationDao.getAllConversations().first().map { entity ->
+                Conversation(
+                    id = entity.id,
+                    title = entity.title,
+                    lastMessage = entity.lastMessage,
+                    timestamp = entity.timestamp
+                )
+            }
+        }
     }
     
-    fun saveMessages(conversationId: Long, messages: List<Message>) {
-        chatHistoryManager.saveMessages(conversationId, messages)
+    fun getMessagesFlow(conversationId: Long): Flow<List<MessageEntity>> {
+        return messageDao.getMessagesByConversationId(conversationId)
     }
     
     fun getMessages(conversationId: Long): List<Message> {
-        return chatHistoryManager.getMessages(conversationId)
+        // 为了向后兼容，仍然返回旧的Message类型
+        return runBlocking {
+            messageDao.getMessagesByConversationId(conversationId).first().map { entity ->
+                Message(
+                    id = entity.id,
+                    text = entity.text,
+                    isUser = entity.isUser,
+                    timestamp = entity.timestamp
+                )
+            }
+        }
     }
     
-    fun createNewConversation(title: String): Conversation {
-        return chatHistoryManager.createNewConversation(title)
+    suspend fun saveMessages(conversationId: Long, messages: List<Message>) {
+        // 在IO线程中执行数据库操作
+        withContext(Dispatchers.IO) {
+            // 删除该对话的所有现有消息
+            messageDao.deleteMessagesByConversationId(conversationId)
+            
+            // 插入新消息
+            val messageEntities = messages.map { message ->
+                MessageEntity(
+                    id = message.id,
+                    conversationId = conversationId,
+                    text = message.text,
+                    isUser = message.isUser,
+                    timestamp = message.timestamp
+                )
+            }
+            messageDao.insertMessages(messageEntities)
+        }
     }
     
-    fun deleteConversation(conversationId: Long) {
-        chatHistoryManager.deleteConversation(conversationId)
+    suspend fun createNewConversation(title: String): Conversation {
+        // 在IO线程中执行数据库操作
+        return withContext(Dispatchers.IO) {
+            val conversations = getConversations()
+            val newId = if (conversations.isEmpty()) 1 else (conversations.maxOfOrNull { it.id } ?: 0) + 1
+            val newConversationEntity = ConversationEntity(
+                id = newId,
+                title = title,
+                lastMessage = "",
+                timestamp = java.util.Date()
+            )
+            
+            conversationDao.insertConversation(newConversationEntity)
+            
+            Conversation(
+                id = newId,
+                title = title,
+                lastMessage = "",
+                timestamp = newConversationEntity.timestamp
+            )
+        }
     }
     
-    fun updateLastMessage(conversationId: Long, lastMessage: String) {
-        chatHistoryManager.updateLastMessage(conversationId, lastMessage)
+    suspend fun deleteConversation(conversationId: Long) {
+        // 在IO线程中执行数据库操作
+        withContext(Dispatchers.IO) {
+            // 删除对话中的所有消息
+            messageDao.deleteMessagesByConversationId(conversationId)
+            
+            // 删除对话本身
+            conversationDao.deleteConversationById(conversationId)
+        }
+    }
+    
+    suspend fun updateLastMessage(conversationId: Long, lastMessage: String) {
+        // 在IO线程中执行数据库操作
+        withContext(Dispatchers.IO) {
+            val conversation = conversationDao.getConversationById(conversationId)
+            if (conversation != null) {
+                val updatedConversation = conversation.copy(
+                    lastMessage = lastMessage,
+                    timestamp = java.util.Date()
+                )
+                conversationDao.updateConversation(updatedConversation)
+            }
+        }
     }
     
     // 创建Retrofit实例

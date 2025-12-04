@@ -38,6 +38,11 @@ import com.chenhongyu.huajuan.SideDrawer
 import com.chenhongyu.huajuan.AICreationScreen
 import com.chenhongyu.huajuan.AgentScreen
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -158,9 +163,9 @@ fun MainApp(
                         .offset { 
                             IntOffset(
                                 if (currentPage.value == 0) 0 else 
-                                if (currentPage.value == 1) -screenWidthPx.roundToInt() else
-                                if (currentPage.value == 2) -(screenWidthPx * 2).roundToInt() else
-                                -(screenWidthPx * 3).roundToInt(), 
+                                if (currentPage.value == 1) (-screenWidthPx).roundToInt() else
+                                if (currentPage.value == 2) (-(screenWidthPx * 2)).roundToInt() else
+                                (-(screenWidthPx * 3)).roundToInt(), 
                                 0
                             ) 
                         }

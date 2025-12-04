@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -64,6 +65,11 @@ dependencies {
     implementation("com.mikepenz:multiplatform-markdown-renderer:0.29.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.29.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.29.0")
+    
+    // 添加Room数据库依赖 (使用较低版本以兼容当前Kotlin版本)
+    implementation("androidx.room:room-runtime:2.5.0")
+    implementation("androidx.room:room-ktx:2.5.0")
+    kapt("androidx.room:room-compiler:2.5.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
