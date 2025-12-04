@@ -86,13 +86,12 @@ fun ChatScreen(
     println("DEBUG: ChatScreen recomposed with currentConversationId: ${appState.currentConversationId}")
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
-    var chatState by remember(appState.currentConversationId ?: "default") { 
-        println("DEBUG: Initializing chatState for conversationId: ${appState.currentConversationId}")
-        val messages = repository.getMessages(appState.currentConversationId ?: "default")
-        println("DEBUG: Loaded ${messages.size} messages for conversationId: ${appState.currentConversationId}")
+    // 移除对appState.currentConversationId的依赖，避免重组时的过渡动画
+    var chatState by remember { 
+        println("DEBUG: Initializing chatState")
         mutableStateOf(
             ChatState(
-                messages = messages,
+                messages = emptyList(),
                 inputText = ""
             )
         ) 
@@ -102,17 +101,21 @@ fun ChatScreen(
     // 数据库操作互斥锁，防止并发访问
     val dbMutex = remember { kotlinx.coroutines.sync.Mutex() }
     
-    // 当前对话ID变化时重新加载消息
-    LaunchedEffect(appState.currentConversationId ?: "default") {
-        println("DEBUG: LaunchedEffect triggered for conversationId: ${appState.currentConversationId}")
+    // 使用DisposableEffect替代LaunchedEffect，避免过渡动画
+    DisposableEffect(appState.currentConversationId) {
+        println("DEBUG: DisposableEffect triggered for conversationId: ${appState.currentConversationId}")
         val conversationId = appState.currentConversationId ?: "default"
         val messages = repository.getMessages(conversationId)
-        println("DEBUG: LaunchedEffect loaded ${messages.size} messages for conversationId: $conversationId")
-        chatState = chatState.copy(
+        println("DEBUG: DisposableEffect loaded ${messages.size} messages for conversationId: $conversationId")
+        chatState = ChatState(
             messages = messages,
             inputText = ""
         )
         println("DEBUG: Updated chatState with new messages, total messages: ${chatState.messages.size}")
+        
+        onDispose {
+            // 清理工作（如果需要）
+        }
     }
     
     Scaffold(
@@ -338,7 +341,8 @@ fun ChatContentArea(
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(16.dp)
+        contentPadding = PaddingValues(16.dp),
+        userScrollEnabled = true
     ) {
         // 显示当前消息数量的调试信息
         item {
@@ -348,7 +352,7 @@ fun ChatContentArea(
                 modifier = Modifier.padding(8.dp)
             )
         }
-        items(messages) { message ->
+        items(messages, key = { message -> message.id }) { message ->
             if (!message.isUser) {
                 // AI回复气泡
                 Column(
