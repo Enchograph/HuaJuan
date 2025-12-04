@@ -4,18 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.OnBackPressedCallback
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +36,8 @@ import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: Repository
+    private var onBackPressedCallback: OnBackPressedCallback? = null
+    private var closeDrawerCallback: (() -> Unit)? = null
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,13 +47,28 @@ class MainActivity : ComponentActivity() {
         repository = Repository(this)
         
         setContent {
-            MainApp(repository)
+            MainApp(repository) { closeCallback ->
+                // 保存关闭侧边栏的回调函数
+                closeDrawerCallback = closeCallback
+            }
         }
+        
+        // 处理返回键事件
+        onBackPressedCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // 调用关闭侧边栏的回调函数
+                closeDrawerCallback?.invoke()
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, onBackPressedCallback!!)
     }
 }
 
 @Composable
-fun MainApp(repository: Repository) {
+fun MainApp(
+    repository: Repository,
+    onCloseDrawerCallback: (()->Unit) -> Unit = {}
+) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     
@@ -77,6 +94,13 @@ fun MainApp(repository: Repository) {
     
     LaunchedEffect(Unit) {
         drawerOffset.snapTo(minDrawerOffset)
+    }
+    
+    // 提供关闭侧边栏的回调函数
+    onCloseDrawerCallback {
+        scope.launch {
+            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+        }
     }
     
     Box(
@@ -221,6 +245,23 @@ fun MainApp(repository: Repository) {
                 },
                 conversations = appState.conversations,
                 drawerWidth = drawerWidth
+            )
+        }
+        
+        // 当侧边栏展开时，点击主页面露出的部分视为返回操作
+        if (drawerOffset.value > minDrawerOffset) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(x = drawerWidth)
+                    .clickable(
+                        indication = null,
+                        interactionSource = null
+                    ) {
+                        scope.launch {
+                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }
             )
         }
     }
