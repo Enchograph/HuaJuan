@@ -75,10 +75,6 @@ fun MainApp(repository: Repository) {
     val maxDrawerOffset = 0f
     val minDrawerOffset = -drawerWidthPx
     
-    // 计算遮罩透明度
-    val scrimAlpha = (drawerOffset.value - minDrawerOffset) / (maxDrawerOffset - minDrawerOffset) * 0.3f
-    val scrimColor = Color.Black.copy(alpha = scrimAlpha)
-    
     LaunchedEffect(Unit) {
         drawerOffset.snapTo(minDrawerOffset)
     }
@@ -108,14 +104,13 @@ fun MainApp(repository: Repository) {
                 }
             )
     ) {
-        // 整体页面容器（包含所有主页面）
+        // 主页面容器（包含所有主页面）
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset((drawerOffset.value + drawerWidthPx).roundToInt(), 0) }
-                .background(scrimColor)
         ) {
-            // 主页面容器
+            // 主页面内容
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -186,6 +181,17 @@ fun MainApp(repository: Repository) {
                         }
                     }
                 }
+                
+                // 遮罩层 - 直接应用于主页面容器之上
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Color.Black.copy(
+                                alpha = (drawerOffset.value - minDrawerOffset) / (maxDrawerOffset - minDrawerOffset) * 0.3f
+                            )
+                        )
+                )
             }
         }
         
