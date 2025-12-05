@@ -281,7 +281,7 @@ class Repository(private val context: Context) {
                 model = when (selectedModel) {
                     "GPT-4" -> "gpt-4"
                     "GPT-3.5 Turbo" -> "gpt-3.5-turbo"
-                    else -> "gpt-3.5-turbo"
+                    else -> "deepseek-ai/DeepSeek-V3"
                 },
                 messages = openAiMessages,
                 temperature = 0.7f
