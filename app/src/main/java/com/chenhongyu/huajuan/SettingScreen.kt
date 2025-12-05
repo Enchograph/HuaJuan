@@ -392,7 +392,7 @@ fun SettingScreen(
                             Column(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                ModernServiceProviderSelector(
+                                ServiceProviderSelector(
                                     serviceProvider = serviceProvider,
                                     onServiceProviderChange = { 
                                         println("ServiceProviderSelector 回调被调用，新值: $it")
@@ -421,6 +421,8 @@ fun SettingScreen(
                                     repository = repository
                                 )
                                 
+                                var passwordVisibility by remember { mutableStateOf(false) }
+                                
                                 OutlinedTextField(
                                     value = apiKey,
                                     onValueChange = { 
@@ -439,10 +441,38 @@ fun SettingScreen(
                                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                         focusedLabelColor = MaterialTheme.colorScheme.primary,
                                         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    ),
+                                    visualTransformation = if (passwordVisibility) {
+                                        androidx.compose.ui.text.input.VisualTransformation.None
+                                    } else {
+                                        androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                    },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                    ),
+                                    trailingIcon = {
+                                        val image = if (passwordVisibility) {
+                                            Icons.Filled.Visibility
+                                        } else {
+                                            Icons.Filled.VisibilityOff
+                                        }
+                                        
+                                        IconButton(onClick = {
+                                            passwordVisibility = !passwordVisibility
+                                        }) {
+                                            Icon(
+                                                imageVector = image,
+                                                contentDescription = if (passwordVisibility) {
+                                                    "隐藏密码"
+                                                } else {
+                                                    "显示密码"
+                                                }
+                                            )
+                                        }
+                                    }
                                 )
                                 
-                                ModernModelSelector(
+                                ModelSelector(
                                     serviceProvider = serviceProvider,
                                     selectedModel = selectedModel,
                                     onModelChange = { 
@@ -617,7 +647,7 @@ fun EditUserInfoDialog(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModernServiceProviderSelector(
+fun ServiceProviderSelector(
     serviceProvider: String,
     onServiceProviderChange: (String) -> Unit,
     customApiUrl: String,
@@ -913,7 +943,7 @@ fun ModernServiceProviderSelector(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModernModelSelector(
+fun ModelSelector(
     serviceProvider: String,
     selectedModel: String,
     onModelChange: (String) -> Unit,
