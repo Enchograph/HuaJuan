@@ -7,7 +7,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -44,6 +48,10 @@ import kotlinx.coroutines.delay
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
 import androidx.compose.ui.window.Dialog
 import com.chenhongyu.huajuan.data.UserInfo
+import com.chenhongyu.huajuan.data.ModelDataProvider
+import com.chenhongyu.huajuan.data.ModelInfo
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 
 /**
  * 设置界面
@@ -60,12 +68,30 @@ fun SettingScreen(
     var useCloudModel by remember { mutableStateOf(repository.getUseCloudModel()) }
     var serviceProvider by remember { mutableStateOf(repository.getServiceProvider()) }
     var customApiUrl by remember { mutableStateOf(repository.getCustomApiUrl()) }
-    var apiKey by remember { mutableStateOf(repository.getApiKey()) }
-    var selectedModel by remember { mutableStateOf(repository.getSelectedModel()) }
+    var apiKey by remember { mutableStateOf(repository.getApiKeyForProvider(serviceProvider)) }
+    var selectedModel by remember { 
+        mutableStateOf(
+            repository.getSelectedModelForProvider(serviceProvider).takeIf { it.isNotEmpty() } 
+                ?: "GPT-3.5 Turbo"
+        ) 
+    }
     var userInfo by remember { mutableStateOf(UserInfo()) }
     var showEditDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    
+    // 添加调试输出
+    LaunchedEffect(serviceProvider) {
+        println("当前选中的服务提供商: $serviceProvider")
+        // 当服务商变更时，更新API密钥和模型选择状态
+        apiKey = repository.getApiKeyForProvider(serviceProvider)
+        selectedModel = repository.getSelectedModelForProvider(serviceProvider).takeIf { it.isNotEmpty() } 
+            ?: "GPT-3.5 Turbo"
+    }
+    
+    LaunchedEffect(selectedModel) {
+        println("当前选中的模型: $selectedModel")
+    }
     
     if (showEditDialog) {
         EditUserInfoDialog(
@@ -256,7 +282,7 @@ fun SettingScreen(
                                         // 获取所有对话
                                         val conversations = repository.getConversations()
                                         // 删除所有对话（会级联删除所有消息）
-                                        conversations.forEach { conversation ->
+                                        conversations.forEach { conversation -> 
                                             repository.deleteConversation(conversation.id)
                                         }
                                         Toast.makeText(context, "已清空所有对话", Toast.LENGTH_SHORT).show()
@@ -363,47 +389,69 @@ fun SettingScreen(
                         
                         if (useCloudModel) {
                             // 云端模型设置
-                            ServiceProviderSelector(
-                                serviceProvider = serviceProvider,
-                                onServiceProviderChange = { 
-                                    serviceProvider = it
-                                    repository.setServiceProvider(it)
-                                },
-                                customApiUrl = customApiUrl,
-                                onCustomApiUrlChange = { 
-                                    customApiUrl = it
-                                    repository.setCustomApiUrl(it)
-                                }
-                            )
-                            
-                            OutlinedTextField(
-                                value = apiKey,
-                                onValueChange = { 
-                                    apiKey = it
-                                    repository.setApiKey(it)
-                                },
-                                label = { Text("API密钥") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 16.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ModernServiceProviderSelector(
+                                    serviceProvider = serviceProvider,
+                                    onServiceProviderChange = { 
+                                        println("ServiceProviderSelector 回调被调用，新值: $it")
+                                        serviceProvider = it
+                                        repository.setServiceProvider(it)
+                                        
+                                        // 更新API密钥和模型选择状态
+                                        apiKey = repository.getApiKeyForProvider(it)
+                                        selectedModel = repository.getSelectedModelForProvider(it).takeIf { model -> model.isNotEmpty() } 
+                                            ?: "GPT-3.5 Turbo"
+                                        
+                                        // 当服务提供商改变时，重置选中的模型
+                                        val modelDataProvider = ModelDataProvider(repository)
+                                        val models = modelDataProvider.getModelListForProvider(it)
+                                        if (models.isNotEmpty()) {
+                                            val firstModel = models.first().displayName
+                                            selectedModel = firstModel
+                                            repository.setSelectedModelForProvider(it, firstModel)
+                                        }
+                                    },
+                                    customApiUrl = customApiUrl,
+                                    onCustomApiUrlChange = { 
+                                        customApiUrl = it
+                                        repository.setCustomApiUrl(it)
+                                    },
+                                    repository = repository
                                 )
-                            )
-                            
-                            ModelSelector(
-                                selectedModel = selectedModel,
-                                onModelChange = { 
-                                    selectedModel = it
-                                    repository.setSelectedModel(it)
-                                }
-                            )
+                                
+                                OutlinedTextField(
+                                    value = apiKey,
+                                    onValueChange = { 
+                                        apiKey = it
+                                        repository.setApiKeyForProvider(serviceProvider, it)
+                                    },
+                                    label = { Text("API密钥") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                
+                                ModernModelSelector(
+                                    serviceProvider = serviceProvider,
+                                    selectedModel = selectedModel,
+                                    onModelChange = { 
+                                        selectedModel = it
+                                        repository.setSelectedModelForProvider(serviceProvider, it)
+                                    },
+                                    repository = repository // 传递 repository 参数
+                                )
+                            }
                             
                             // 添加测试连接按钮
                             Button(
@@ -412,7 +460,7 @@ fun SettingScreen(
                                     scope.launch {
                                         val testMessage = com.chenhongyu.huajuan.data.Message(
                                             id = "test-message",
-                                            text = "Hello, test connection!",
+                                            text = "输出“测试成功”四个字符，不要输出任何多余的格式和文字。",
                                             isUser = true,
                                             timestamp = java.util.Date()
                                         )
@@ -565,17 +613,23 @@ fun EditUserInfoDialog(
 }
 
 /**
- * 服务提供商选择器
+ * 服务提供商选择器（符合Material Design规范的新版本）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServiceProviderSelector(
+fun ModernServiceProviderSelector(
     serviceProvider: String,
     onServiceProviderChange: (String) -> Unit,
     customApiUrl: String,
-    onCustomApiUrlChange: (String) -> Unit
+    onCustomApiUrlChange: (String) -> Unit,
+    repository: Repository
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val serviceProviders = listOf("OpenAI", "Azure", "Anthropic", "自定义")
+    // 根据模型列表.md更新的服务提供商列表
+    val modelDataProvider = ModelDataProvider(repository)
+    val serviceProviders = modelDataProvider.getAllServiceProviders()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var providerToDelete by remember { mutableStateOf("") }
     
     Column {
         Text(
@@ -585,41 +639,105 @@ fun ServiceProviderSelector(
             color = MaterialTheme.colorScheme.onSurface
         )
         
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
+        // 使用固定高度的现代化选择列表
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp) // 设置固定高度以避免嵌套滚动问题
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(12.dp)
                 )
-            ) {
-                Text(serviceProvider)
-                Icon(
-                    Icons.Outlined.ArrowDropDown, 
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            items(serviceProviders) { provider ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onServiceProviderChange(provider)
+                        }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (provider == serviceProvider),
+                            onClick = { onServiceProviderChange(provider) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        Text(
+                            text = provider,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        // 显示删除按钮（除了预定义的服务商）
+                        if (!ModelDataProvider.predefinedServiceProviders.containsKey(provider)) {
+                            IconButton(
+                                onClick = {
+                                    providerToDelete = provider
+                                    showDeleteConfirm = true
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "删除服务商",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 添加分割线（除了最后一个元素）
+                if (provider != serviceProviders.last()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(start = 56.dp)
+                    )
+                }
             }
             
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-            ) {
-                serviceProviders.forEach { provider ->
-                    DropdownMenuItem(
-                        text = { 
-                            Text(
-                                text = provider,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ) 
-                        },
-                        onClick = {
-                            onServiceProviderChange(provider)
-                            expanded = false
+            item {
+                // 添加新服务商按钮
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showAddDialog = true
                         }
-                    )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "添加服务商",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        Text(
+                            text = "新建服务商",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
@@ -642,20 +760,170 @@ fun ServiceProviderSelector(
                     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
+            
+            Text(
+                text = "提示：请输入完整的API端点URL，例如 https://api.openai.com/v1/chat/completions",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
+    }
+    
+    // 添加服务商对话框
+    if (showAddDialog) {
+        var providerName by remember { mutableStateOf("") }
+        var providerUrl by remember { mutableStateOf("") }
+        val focusManager = LocalFocusManager.current
+        
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = {
+                Text(
+                    text = "添加新服务商",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = providerName,
+                        onValueChange = { providerName = it },
+                        label = { Text("服务商名称") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    
+                    OutlinedTextField(
+                        value = providerUrl,
+                        onValueChange = { providerUrl = it },
+                        label = { Text("API基址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (providerName.isNotBlank() && providerUrl.isNotBlank()) {
+                            repository.addCustomServiceProvider(providerName, providerUrl)
+                            showAddDialog = false
+                            providerName = ""
+                            providerUrl = ""
+                        }
+                    },
+                    enabled = providerName.isNotBlank() && providerUrl.isNotBlank(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("添加")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddDialog = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
+    // 删除确认对话框
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = {
+                Text(
+                    text = "确认删除",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "确定要删除服务商 \"$providerToDelete\" 吗？此操作将同时删除该服务商下的所有自定义模型。",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        repository.removeCustomServiceProvider(providerToDelete)
+                        // 如果删除的是当前选中的服务商，则切换到默认服务商
+                        if (serviceProvider == providerToDelete) {
+                            onServiceProviderChange("硅基流动")
+                        }
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirm = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
 /**
- * 模型选择器
+ * 模型选择器（符合Material Design规范的新版本）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModelSelector(
+fun ModernModelSelector(
+    serviceProvider: String,
     selectedModel: String,
-    onModelChange: (String) -> Unit
+    onModelChange: (String) -> Unit,
+    repository: Repository
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val models = listOf("GPT-4", "GPT-3.5 Turbo", "Claude 2", "Claude Instant")
+    val modelDataProvider = ModelDataProvider(repository)
+    val models = modelDataProvider.getModelListForProvider(serviceProvider)
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var modelToDelete by remember { mutableStateOf("") }
     
     Column {
         Text(
@@ -665,45 +933,264 @@ fun ModelSelector(
             color = MaterialTheme.colorScheme.onSurface
         )
         
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
+        // 使用固定高度的现代化选择列表
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp) // 设置固定高度以避免嵌套滚动问题
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(12.dp)
                 )
-            ) {
-                Text(selectedModel)
-                Icon(
-                    Icons.Outlined.ArrowDropDown, 
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                models.forEach { model ->
-                    DropdownMenuItem(
-                        text = { 
-                            Text(
-                                text = model,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ) 
-                        },
-                        onClick = {
-                            onModelChange(model)
-                            expanded = false
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            items(models) { model ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onModelChange(model.displayName)
                         }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (model.displayName == selectedModel),
+                            onClick = { onModelChange(model.displayName) },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        Text(
+                            text = model.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        // 显示删除按钮（除了预定义的模型）
+                        val isPredefinedProvider = ModelDataProvider.predefinedServiceProviders.containsKey(serviceProvider)
+                        val isPredefinedModel = isPredefinedProvider && 
+                            ModelDataProvider.predefinedServiceProviders[serviceProvider]?.models?.any { it.apiCode == model.apiCode } == true
+                        
+                        if (!isPredefinedModel) {
+                            IconButton(
+                                onClick = {
+                                    modelToDelete = model.displayName
+                                    showDeleteConfirm = true
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "删除模型",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 添加分割线（除了最后一个元素）
+                if (model != models.last()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(start = 56.dp)
                     )
                 }
             }
+            
+            item {
+                // 添加新模型按钮
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showAddDialog = true
+                        }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "添加模型",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        Text(
+                            text = "新建模型",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+        
+        if (models.isEmpty()) {
+            Text(
+                text = "该服务提供商暂无可用模型",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
         }
     }
+    
+    // 添加模型对话框
+    if (showAddDialog) {
+        var modelCode by remember { mutableStateOf("") }
+        var modelName by remember { mutableStateOf("") }
+        val focusManager = LocalFocusManager.current
+        
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = {
+                Text(
+                    text = "添加新模型",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = modelCode,
+                        onValueChange = { modelCode = it },
+                        label = { Text("模型编码") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    
+                    OutlinedTextField(
+                        value = modelName,
+                        onValueChange = { modelName = it },
+                        label = { Text("模型名称") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                            }
+                        ),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (modelCode.isNotBlank() && modelName.isNotBlank()) {
+                            repository.addCustomModelToProvider(serviceProvider, modelName, modelCode)
+                            showAddDialog = false
+                            modelCode = ""
+                            modelName = ""
+                        }
+                    },
+                    enabled = modelCode.isNotBlank() && modelName.isNotBlank(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("添加")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddDialog = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
+    // 删除确认对话框
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = {
+                Text(
+                    text = "确认删除",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "确定要删除模型 \"$modelToDelete\" 吗？",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        repository.removeCustomModelFromProvider(serviceProvider, modelToDelete)
+                        // 如果删除的是当前选中的模型，则切换到第一个模型
+                        if (selectedModel == modelToDelete) {
+                            val firstModel = models.firstOrNull { it.displayName != modelToDelete }?.displayName ?: ""
+                            if (firstModel.isNotEmpty()) {
+                                onModelChange(firstModel)
+                            }
+                        }
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirm = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
+
 
 @Composable
 fun LocalModelSection() {

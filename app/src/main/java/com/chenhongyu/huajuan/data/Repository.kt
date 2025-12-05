@@ -20,6 +20,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import com.chenhongyu.huajuan.data.ModelDataProvider
+import com.chenhongyu.huajuan.data.ModelInfo
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -60,11 +62,57 @@ class Repository(private val context: Context) {
     }
     
     fun getServiceProvider(): String {
-        return prefs.getString("service_provider", "OpenAI") ?: "OpenAI"
+        val defaultProvider = "硅基流动" // 更改默认服务提供商
+        return prefs.getString("service_provider", defaultProvider) ?: defaultProvider
     }
     
     fun setServiceProvider(serviceProvider: String) {
         prefs.edit().putString("service_provider", serviceProvider).apply()
+    }
+    
+    // 获取指定服务商的API密钥
+    fun getApiKeyForProvider(provider: String): String {
+        return prefs.getString("api_key_$provider", "") ?: ""
+    }
+    
+    // 设置指定服务商的API密钥
+    fun setApiKeyForProvider(provider: String, apiKey: String) {
+        prefs.edit().putString("api_key_$provider", apiKey).apply()
+    }
+    
+    // 获取当前服务商的API密钥（向后兼容）
+    fun getApiKey(): String {
+        val currentProvider = getServiceProvider()
+        return getApiKeyForProvider(currentProvider)
+    }
+    
+    // 设置当前服务商的API密钥（向后兼容）
+    fun setApiKey(apiKey: String) {
+        val currentProvider = getServiceProvider()
+        setApiKeyForProvider(currentProvider, apiKey)
+    }
+    
+    // 获取指定服务商选中的模型
+    fun getSelectedModelForProvider(provider: String): String {
+        return prefs.getString("selected_model_$provider", "") ?: ""
+    }
+    
+    // 设置指定服务商选中的模型
+    fun setSelectedModelForProvider(provider: String, selectedModel: String) {
+        prefs.edit().putString("selected_model_$provider", selectedModel).apply()
+    }
+    
+    // 获取当前服务商选中的模型（向后兼容）
+    fun getSelectedModel(): String {
+        val currentProvider = getServiceProvider()
+        val model = getSelectedModelForProvider(currentProvider)
+        return if (model.isNotEmpty()) model else "GPT-3.5 Turbo"
+    }
+    
+    // 设置当前服务商选中的模型（向后兼容）
+    fun setSelectedModel(selectedModel: String) {
+        val currentProvider = getServiceProvider()
+        setSelectedModelForProvider(currentProvider, selectedModel)
     }
     
     fun getCustomApiUrl(): String {
@@ -75,20 +123,62 @@ class Repository(private val context: Context) {
         prefs.edit().putString("custom_api_url", customApiUrl).apply()
     }
     
-    fun getApiKey(): String {
-        return prefs.getString("api_key", "") ?: ""
+    // 自定义服务提供商相关方法
+    fun getCustomServiceProviders(): Set<String> {
+        return prefs.getStringSet("custom_service_providers", emptySet()) ?: emptySet()
     }
     
-    fun setApiKey(apiKey: String) {
-        prefs.edit().putString("api_key", apiKey).apply()
+    fun addCustomServiceProvider(name: String, apiUrl: String) {
+        val customProviders = getCustomServiceProviders().toMutableSet()
+        customProviders.add(name)
+        prefs.edit()
+            .putStringSet("custom_service_providers", customProviders)
+            .putString("custom_provider_url_$name", apiUrl)
+            .apply()
     }
     
-    fun getSelectedModel(): String {
-        return prefs.getString("selected_model", "GPT-3.5 Turbo") ?: "GPT-3.5 Turbo"
+    fun removeCustomServiceProvider(name: String) {
+        val customProviders = getCustomServiceProviders().toMutableSet()
+        customProviders.remove(name)
+        prefs.edit()
+            .putStringSet("custom_service_providers", customProviders)
+            .remove("custom_provider_url_$name")
+            .remove("custom_provider_models_$name")
+            // 同时移除该服务商的API密钥和选中模型
+            .remove("api_key_$name")
+            .remove("selected_model_$name")
+            .apply()
     }
     
-    fun setSelectedModel(selectedModel: String) {
-        prefs.edit().putString("selected_model", selectedModel).apply()
+    fun getCustomProviderApiUrl(name: String): String {
+        return prefs.getString("custom_provider_url_$name", "") ?: ""
+    }
+    
+    // 自定义模型相关方法
+    fun getCustomModelsForProvider(providerName: String): Set<String> {
+        return prefs.getStringSet("custom_provider_models_$providerName", emptySet()) ?: emptySet()
+    }
+    
+    fun addCustomModelToProvider(providerName: String, modelName: String, apiCode: String) {
+        val customModels = getCustomModelsForProvider(providerName).toMutableSet()
+        customModels.add(modelName)
+        prefs.edit()
+            .putStringSet("custom_provider_models_$providerName", customModels)
+            .putString("custom_model_code_${providerName}_$modelName", apiCode)
+            .apply()
+    }
+    
+    fun removeCustomModelFromProvider(providerName: String, modelName: String) {
+        val customModels = getCustomModelsForProvider(providerName).toMutableSet()
+        customModels.remove(modelName)
+        prefs.edit()
+            .putStringSet("custom_provider_models_$providerName", customModels)
+            .remove("custom_model_code_${providerName}_$modelName")
+            .apply()
+    }
+    
+    fun getCustomModelApiCode(providerName: String, modelName: String): String {
+        return prefs.getString("custom_model_code_${providerName}_$modelName", "") ?: ""
     }
     
     // 聊天历史相关方法 - 使用Room数据库
@@ -253,13 +343,67 @@ class Repository(private val context: Context) {
     // 获取基础URL
     private fun getBaseUrl(): String {
         val serviceProvider = getServiceProvider()
-        return when (serviceProvider) {
-            "OpenAI" -> "https://api.openai.com/"
-            "Azure" -> "https://YOUR_RESOURCE_NAME.openai.azure.com/" // 需要用户在Azure门户获取
-            "Anthropic" -> "https://api.anthropic.com/"
-            "自定义" -> getCustomApiUrl().ifEmpty { "https://api.openai.com/" }
-            else -> "https://api.openai.com/"
+        // 对于预定义的服务提供商，使用ModelDataProvider获取API URL
+        val modelDataProvider = ModelDataProvider(this)
+        val predefinedUrl = modelDataProvider.getApiUrlForProvider(serviceProvider)
+        if (predefinedUrl.isNotEmpty()) {
+            // 预定义的服务商URL已经是正确的格式，直接返回
+            // 确保URL以斜杠结尾（满足Retrofit要求）
+            return if (predefinedUrl.endsWith("/")) predefinedUrl else "$predefinedUrl/"
         }
+        
+        // 对于自定义服务提供商，使用存储的URL并进行规范化处理
+        val customUrl = when (serviceProvider) {
+            "自定义" -> getCustomApiUrl().ifEmpty { "https://api.openai.com/v1/chat/completions" }
+            else -> getCustomProviderApiUrl(serviceProvider).ifEmpty { "https://api.openai.com/v1/chat/completions" }
+        }
+        
+        return normalizeBaseUrl(customUrl)
+    }
+    
+    /**
+     * 规范化基础URL，确保它以正确的格式结尾，适用于OpenAI API格式
+     * 仅对用户自定义的服务商生效
+     * 处理各种可能的输入格式：
+     * - https://ai.soruxgpt.com
+     * - https://ai.soruxgpt.com/
+     * - https://ai.soruxgpt.com/v1/chat/completions
+     * - https://ai.soruxgpt.com/v1/chat/completions/
+     */
+    private fun normalizeBaseUrl(url: String): String {
+        if (url.isBlank()) return "https://api.openai.com/v1/chat/completions/"
+        
+        var normalizedUrl = url.trim()
+        
+        // 移除末尾的斜杠
+        while (normalizedUrl.endsWith("/")) {
+            normalizedUrl = normalizedUrl.dropLast(1)
+        }
+        
+        // 检查是否以标准的OpenAI API路径结尾
+        if (normalizedUrl.endsWith("/v1/chat/completions") || 
+            normalizedUrl.endsWith("/v1/completions") ||
+            normalizedUrl.endsWith("/v1/embeddings")) {
+            // 已经是完整的API端点URL，直接返回
+            return "$normalizedUrl/"
+        } else if (normalizedUrl.contains("/v1/")) {
+            // 如果包含其他v1端点，也直接返回
+            return "$normalizedUrl/"
+        }
+        
+        // 不包含v1路径，需要添加默认的chat completions路径
+        // 确保URL以斜杠结尾
+        if (!normalizedUrl.endsWith("/")) {
+            normalizedUrl += "/"
+        }
+        
+        // 确保URL以https://开头
+        if (!normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("http://")) {
+            normalizedUrl = "https://$normalizedUrl"
+        }
+        
+        // 添加默认的v1 chat completions路径
+        return "${normalizedUrl}v1/chat/completions/"
     }
     
     // 获取AI响应
@@ -271,6 +415,7 @@ class Repository(private val context: Context) {
             }
             
             val selectedModel = getSelectedModel()
+            val serviceProvider = getServiceProvider()
             val openAiMessages = messages.map { 
                 NetworkMessage(
                     role = if (it.isUser) "user" else "assistant",
@@ -278,13 +423,15 @@ class Repository(private val context: Context) {
                 )
             }
             
+            // 使用ModelDataProvider获取模型的API代码
+            val modelDataProvider = ModelDataProvider(this)
+            val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+            val modelInfo = modelList.find { it.displayName == selectedModel }
+            val modelApiCode = modelInfo?.apiCode ?: "gpt-3.5-turbo" // 默认模型
+            
             // 构造请求对象
             val request = OpenAiRequest(
-                model = when (selectedModel) {
-                    "GPT-4" -> "gpt-4"
-                    "GPT-3.5 Turbo" -> "gpt-3.5-turbo"
-                    else -> "deepseek-ai/DeepSeek-V3"
-                },
+                model = modelApiCode,
                 messages = openAiMessages,
                 temperature = 0.7f
             )

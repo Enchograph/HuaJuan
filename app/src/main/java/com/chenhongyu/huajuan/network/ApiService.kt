@@ -7,7 +7,7 @@ import retrofit2.http.Header
 
 // OpenAI API 接口
 interface OpenAiApiService {
-    @POST("v1/chat/completions")
+    @POST("chat/completions")
     suspend fun getChatCompletion(
         @Header("Authorization") authorization: String,
         @Header("Content-Type") contentType: String = "application/json",
