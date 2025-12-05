@@ -5,6 +5,7 @@ import androidx.room.Query
 import androidx.room.Insert
 import androidx.room.Update
 import androidx.room.Delete
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -23,6 +24,12 @@ interface MessageDao {
 
     @Update
     fun updateMessage(message: MessageEntity): Int
+
+    @Upsert
+    fun upsertMessage(message: MessageEntity): Long
+    
+    @Upsert
+    fun upsertMessages(messages: List<MessageEntity>): List<Long>
 
     @Delete
     fun deleteMessage(message: MessageEntity): Int

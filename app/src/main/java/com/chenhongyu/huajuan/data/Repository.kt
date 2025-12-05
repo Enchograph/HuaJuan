@@ -173,7 +173,9 @@ class Repository(private val context: Context) {
                     timestamp = message.timestamp
                 )
             }
-            messageDao.insertMessages(messageEntities)
+            
+            // 使用 upsert 操作避免冲突
+            messageDao.upsertMessages(messageEntities)
         }
     }
     
