@@ -67,14 +67,16 @@ import androidx.compose.ui.platform.LocalDensity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SideDrawer(
-    onChatPageSelected: (String) -> Unit,  // 修改参数类型为String
+
+    onChatPageSelected: (String) -> Unit,
     onSettingPageSelected: () -> Unit,
     onAICreationPageSelected: () -> Unit,
     onAgentPageSelected: () -> Unit,
     conversations: List<Conversation>,
     drawerWidth: Dp,
     darkTheme: Boolean,
-    repository: Repository
+    repository: Repository,
+    currentConversationId: String?, // 添加当前对话ID参数
 ) {
     HuaJuanTheme(darkTheme = darkTheme) {
         ModalDrawerSheet(
@@ -91,6 +93,7 @@ fun SideDrawer(
             var menuPosition by remember { mutableStateOf(Offset.Zero) }
             var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
             val conversationPositions = remember { mutableStateMapOf<String, Pair<Offset, androidx.compose.ui.geometry.Size>>() }
+            var pinnedConversations by remember { mutableStateOf(setOf<String>()) }
             
             Box(
                 modifier = Modifier
@@ -346,6 +349,129 @@ fun SideDrawer(
                         )
                     }
 
+                    // 显示置顶对话
+                    if (pinnedConversations.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "置顶对话",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+                            )
+                        }
+                        
+                        items(conversations.filter { conversation -> 
+                            conversation.id in pinnedConversations 
+                        }, key = { it.id }) { conversation ->
+                            Box(
+                                modifier = Modifier.then(
+                                    if (showContextMenu && selectedConversation?.id == conversation.id) 
+                                        Modifier  // 去除模糊效果
+                                    else 
+                                        Modifier
+                                )
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            text = conversation.title,
+                                            maxLines = 1,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = if (conversation.id == currentConversationId) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            }
+                                        )
+                                    },
+                                    leadingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(12.dp)) // 圆形彩色背景图标
+                                                .background(
+                                                    if (conversation.id == currentConversationId) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.primaryContainer
+                                                    }
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.PushPin,
+                                                contentDescription = null,
+                                                tint = if (conversation.id == currentConversationId) {
+                                                    MaterialTheme.colorScheme.onPrimary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                },
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = if (conversation.id == currentConversationId) {
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        } else {
+                                            Color.Transparent
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .combinedClickable(
+                                            onClick = {
+                                                println("DEBUG: Selected pinned conversation in SideDrawer - Title: ${conversation.title}, ID: ${conversation.id}")
+                                                onChatPageSelected(conversation.id)
+                                            },
+                                            onLongClick = {
+                                                println("DEBUG: Long clicked pinned conversation - Title: ${conversation.title}, ID: ${conversation.id}")
+                                                // 获取当前项的位置信息
+                                                conversationPositions[conversation.id]?.let { (position, size) ->
+                                                    // 计算菜单位置：在当前项正下方，但稍微向上偏移一点
+                                                    val x = position.x.toInt()
+                                                    val y = (position.y + size.height - 155).toInt() // 向上偏移大约一项的高度 (简化处理)
+                                                    contextMenuOffset = IntOffset(x, y)
+                                                }
+                                                selectedConversation = conversation
+                                                showContextMenu = true
+                                                println("DEBUG: showContextMenu set to $showContextMenu")
+                                            },
+                                            indication = null, // 移除长按波纹效果
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                        )
+                                        .padding(horizontal = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(
+                                            width = if (conversation.id == currentConversationId) 2.dp else 0.dp,
+                                            color = if (conversation.id == currentConversationId) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(horizontal = 8.dp)
+                                        .onGloballyPositioned { coordinates ->
+                                            // 存储当前项的位置信息，包括相对于屏幕的位置
+                                            val positionInRoot = coordinates.boundsInRoot().topLeft
+                                            val size = coordinates.size.toSize()
+                                            conversationPositions[conversation.id] = positionInRoot to size
+                                        }
+                                )
+                            }
+                        }
+                        
+                        // 分割线
+                        item {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        }
+                    }
+
                     // 第三个区块：历史记录
                     item {
                         Text(
@@ -358,13 +484,13 @@ fun SideDrawer(
                         )
                     }
 
-                    items(conversations) { conversation ->
+                    items(conversations.filter { conversation -> 
+                        conversation.id !in pinnedConversations 
+                    }, key = { it.id }) { conversation ->
                         Box(
                             modifier = Modifier.then(
                                 if (showContextMenu && selectedConversation?.id == conversation.id) 
-                                    Modifier.blur(radius = 0.dp) // 不模糊选中的项
-                                else if (showContextMenu) 
-                                    Modifier.blur(radius = 4.dp) // 模糊其他项
+                                    Modifier  // 去除模糊效果
                                 else 
                                     Modifier
                             )
@@ -375,7 +501,11 @@ fun SideDrawer(
                                         text = conversation.title,
                                         maxLines = 1,
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = if (conversation.id == currentConversationId) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        }
                                     )
                                 },
                                 leadingContent = {
@@ -383,19 +513,33 @@ fun SideDrawer(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(12.dp)) // 圆形彩色背景图标
-                                            .background(MaterialTheme.colorScheme.primaryContainer),
+                                            .background(
+                                                if (conversation.id == currentConversationId) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                }
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Outlined.ChatBubbleOutline,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            tint = if (conversation.id == currentConversationId) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                            },
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 },
                                 colors = ListItemDefaults.colors(
-                                    containerColor = Color.Transparent
+                                    containerColor = if (conversation.id == currentConversationId) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    } else {
+                                        Color.Transparent
+                                    }
                                 ),
                                 modifier = Modifier
                                     .combinedClickable(
@@ -421,6 +565,15 @@ fun SideDrawer(
                                     )
                                     .padding(horizontal = 8.dp)
                                     .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        width = if (conversation.id == currentConversationId) 2.dp else 0.dp,
+                                        color = if (conversation.id == currentConversationId) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
                                     .padding(horizontal = 8.dp)
                                     .onGloballyPositioned { coordinates ->
                                         // 存储当前项的位置信息，包括相对于屏幕的位置
@@ -460,14 +613,20 @@ fun SideDrawer(
                     ContextMenu(
                         conversation = conversation,
                         offset = contextMenuOffset,
+                        isPinned = conversation.id in pinnedConversations,
                         onDismiss = {
                             println("DEBUG: Dismissing context menu")
                             showContextMenu = false
                             selectedConversation = null
                         },
                         onPin = {
-                            // 置顶功能待实现
-                            println("DEBUG: Pin conversation")
+                            // 切换置顶状态
+                            if (conversation.id in pinnedConversations) {
+                                pinnedConversations = pinnedConversations - conversation.id
+                            } else {
+                                pinnedConversations = pinnedConversations + conversation.id
+                            }
+                            println("DEBUG: Toggle pin conversation, pinnedConversations=$pinnedConversations")
                             showContextMenu = false
                             selectedConversation = null
                         },
@@ -487,6 +646,12 @@ fun SideDrawer(
                             scope.launch {
                                 try {
                                     repository.deleteConversation(conversation.id)
+                                    // 如果被删除的是置顶对话，则从置顶集合中移除
+                                    if (conversation.id in pinnedConversations) {
+                                        pinnedConversations = pinnedConversations - conversation.id
+                                    }
+                                    // 通知MainActivity刷新对话列表
+                                    onChatPageSelected("refresh_needed")
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, "对话已删除", Toast.LENGTH_SHORT).show()
                                     }
@@ -517,6 +682,8 @@ fun SideDrawer(
                             scope.launch {
                                 try {
                                     repository.updateConversationTitle(conversation.id, title)
+                                    // 通知MainActivity刷新对话列表
+                                    onChatPageSelected("refresh_needed")
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, "对话名称已更新", Toast.LENGTH_SHORT).show()
                                     }
@@ -540,6 +707,7 @@ fun SideDrawer(
 fun ContextMenu(
     conversation: Conversation,
     offset: IntOffset,
+    isPinned: Boolean,
     onDismiss: () -> Unit,
     onPin: () -> Unit,
     onEdit: () -> Unit,
@@ -590,8 +758,8 @@ fun ContextMenu(
                     .padding(8.dp)
             ) {
                 ContextMenuItem(
-                    icon = Icons.Default.PushPin,
-                    text = "置顶",
+                    icon = if (isPinned) Icons.Default.RemoveFromQueue else Icons.Default.PushPin,
+                    text = if (isPinned) "取消置顶" else "置顶",
                     onClick = {
                         onPin()
                     }

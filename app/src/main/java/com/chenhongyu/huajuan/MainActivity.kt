@@ -333,7 +333,16 @@ fun MainApp(
                 SideDrawer(
                     onChatPageSelected = { conversationId -> 
                         println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
-                        // 正确设置当前对话ID
+                        // 如果是特殊标识符"refresh_needed"，则只刷新对话列表而不切换页面
+                        if (conversationId == "refresh_needed") {
+                            // 只更新对话列表
+                            appState = appState.copy(
+                                conversations = repository.getConversations()
+                            )
+                            return@SideDrawer
+                        }
+                        
+                        // 正常的页面切换逻辑
                         appState = appState.copy(
                             currentConversationId = if (conversationId == "default") null else conversationId
                         )
@@ -378,7 +387,8 @@ fun MainApp(
                     conversations = appState.conversations,
                     drawerWidth = drawerWidth,
                     darkTheme = darkMode.value,
-                    repository = repository
+                    repository = repository,
+                    currentConversationId = appState.currentConversationId // 添加当前对话ID参数
                 )
             }
         }
