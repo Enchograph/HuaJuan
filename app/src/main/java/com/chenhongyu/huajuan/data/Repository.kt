@@ -409,45 +409,29 @@ class Repository(private val context: Context) {
     // 获取AI响应
     suspend fun getAIResponse(messages: List<Message>): String {
         try {
-            val apiKey = getApiKey()
-            if (apiKey.isEmpty()) {
-                return "错误：API密钥未设置"
-            }
+            // 使用模型API工厂创建相应服务
+            val modelApiFactory = ModelApiFactory(this)
+            val modelApiService = modelApiFactory.getCurrentModelApiService()
             
-            val selectedModel = getSelectedModel()
+            // 获取当前选中的模型信息
             val serviceProvider = getServiceProvider()
-            val openAiMessages = messages.map { 
-                NetworkMessage(
+            val selectedModelDisplayName = getSelectedModel()
+            
+            val modelDataProvider = ModelDataProvider(this)
+            val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+            val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
+                ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
+            
+            // 将消息转换为网络消息格式
+            val networkMessages = messages.map { 
+                com.chenhongyu.huajuan.network.Message(
                     role = if (it.isUser) "user" else "assistant",
                     content = it.text
                 )
             }
             
-            // 使用ModelDataProvider获取模型的API代码
-            val modelDataProvider = ModelDataProvider(this)
-            val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
-            val modelInfo = modelList.find { it.displayName == selectedModel }
-            val modelApiCode = modelInfo?.apiCode ?: "gpt-3.5-turbo" // 默认模型
-            
-            // 构造请求对象
-            val request = OpenAiRequest(
-                model = modelApiCode,
-                messages = openAiMessages,
-                temperature = 0.7f
-            )
-            
-            val apiService = createApiService()
-            val response = apiService.getChatCompletion(
-                authorization = "Bearer $apiKey",
-                request = request
-            )
-            
-            if (response.isSuccessful) {
-                val openAiResponse = response.body()
-                return openAiResponse?.choices?.firstOrNull()?.message?.content ?: ""
-            } else {
-                return "错误：HTTP ${response.code()} - ${response.message()}"
-            }
+            // 调用相应的模型API服务
+            return modelApiService.getAIResponse(networkMessages, modelInfo)
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }

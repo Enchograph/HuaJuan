@@ -22,6 +22,7 @@ data class OpenAiRequest(
     val temperature: Float = 0.7f
 )
 
+// 注意：这里的Message类与Repository中的Message类不同
 data class Message(
     val role: String,
     val content: String
