@@ -51,7 +51,7 @@ import com.chenhongyu.huajuan.data.UserInfo
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
-
+import com.chenhongyu.huajuan.data.Message // 导入Message类
 
 /**
  * 设置界面
@@ -347,7 +347,11 @@ fun SettingScreen(
                                     scope.launch {
                                         try {
                                             for (i in 1..100) {
-                                                repository.createNewConversation("测试对话 #$i")
+                                                repository.createNewConversation(
+                                                    title = "测试对话 #$i",
+                                                    roleName = "默认助手",
+                                                    systemPrompt = "你是一个AI助手"
+                                                )
                                             }
                                             Toast.makeText(context, "已创建100条测试对话", Toast.LENGTH_SHORT).show()
                                         } catch (e: Exception) {
@@ -527,13 +531,14 @@ fun SettingScreen(
                                 onClick = {
                                     // 在实际应用中，这里会测试API连接
                                     scope.launch {
-                                        val testMessage = com.chenhongyu.huajuan.data.Message(
+                                        val testMessage = Message(
                                             id = "test-message",
                                             text = "输出“测试成功”四个字符，不要输出任何多余的格式和文字。",
                                             isUser = true,
                                             timestamp = java.util.Date()
                                         )
-                                        val response = repository.getAIResponse(listOf(testMessage))
+                                        // 使用默认对话ID进行测试
+                                        val response = repository.getAIResponse(listOf(testMessage), "default")
                                         Toast.makeText(context, response, Toast.LENGTH_LONG).show()
                                     }
                                 },
@@ -550,7 +555,112 @@ fun SettingScreen(
                             }
                         } else {
                             // 本地模型设置
-                            LocalModelSection()
+                            Column {
+                                Text(
+                                    text = "本地模型",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    ListItem(
+                                        headlineContent = { 
+                                            Text(
+                                                text = "Qwen 7B",
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ) 
+                                        },
+                                        supportingContent = { 
+                                            Text(
+                                                text = "已下载",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) 
+                                        },
+                                        trailingContent = {
+                                            RadioButton(
+                                                selected = true,
+                                                onClick = { 
+                                                    /* 选择模型 */
+                                                    println("选择了Qwen 7B模型")
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = MaterialTheme.colorScheme.primary,
+                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                                
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    ListItem(
+                                        headlineContent = { 
+                                            Text(
+                                                text = "Llama 2 7B",
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ) 
+                                        },
+                                        supportingContent = { 
+                                            Text(
+                                                text = "已下载",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) 
+                                        },
+                                        trailingContent = {
+                                            RadioButton(
+                                                selected = false,
+                                                onClick = { 
+                                                    /* 选择模型 */
+                                                    println("选择了Llama 2 7B模型")
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = MaterialTheme.colorScheme.primary,
+                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                                
+                                // 添加新模型按钮
+                                OutlinedButton(
+                                    onClick = { 
+                                        /* 下载新模型 */
+                                        println("添加模型按钮被点击")
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Add, 
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("添加模型")
+                                }
+                            }
                         }
                     }
                 }
@@ -1257,116 +1367,5 @@ fun ModelSelector(
                 }
             }
         )
-    }
-}
-
-
-@Composable
-fun LocalModelSection() {
-    Column {
-        Text(
-            text = "本地模型",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            ListItem(
-                headlineContent = { 
-                    Text(
-                        text = "Qwen 7B",
-                        color = MaterialTheme.colorScheme.onSurface
-                    ) 
-                },
-                supportingContent = { 
-                    Text(
-                        text = "已下载",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) 
-                },
-                trailingContent = {
-                    RadioButton(
-                        selected = true,
-                        onClick = { 
-                            /* 选择模型 */
-                            println("选择了Qwen 7B模型")
-                        },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colorScheme.primary,
-                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            )
-        }
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            ListItem(
-                headlineContent = { 
-                    Text(
-                        text = "Llama 2 7B",
-                        color = MaterialTheme.colorScheme.onSurface
-                    ) 
-                },
-                supportingContent = { 
-                    Text(
-                        text = "已下载",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) 
-                },
-                trailingContent = {
-                    RadioButton(
-                        selected = false,
-                        onClick = { 
-                            /* 选择模型 */
-                            println("选择了Llama 2 7B模型")
-                        },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colorScheme.primary,
-                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            )
-        }
-        
-        // 添加新模型按钮
-        OutlinedButton(
-            onClick = { 
-                /* 下载新模型 */
-                println("添加模型按钮被点击")
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.onSurface
-            )
-        ) {
-            Icon(
-                Icons.Outlined.Add, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("添加模型")
-        }
     }
 }

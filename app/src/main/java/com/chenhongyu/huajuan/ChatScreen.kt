@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -100,6 +101,11 @@ fun ChatScreen(
     }
     val context = LocalContext.current
     
+    // 获取当前对话的角色名称
+    var roleName by remember { mutableStateOf("默认助手") }
+    // 获取当前对话的系统提示词
+    var systemPrompt by remember { mutableStateOf("你是一个AI助手") }
+
     // 数据库操作互斥锁，防止并发访问
     val dbMutex = remember { kotlinx.coroutines.sync.Mutex() }
     
@@ -108,6 +114,10 @@ fun ChatScreen(
         println("DEBUG: DisposableEffect triggered for conversationId: ${appState.currentConversationId}")
         val conversationId = appState.currentConversationId ?: "default"
         val messages = repository.getMessages(conversationId)
+        // 获取当前对话的角色名称
+        roleName = repository.getConversationRoleName(conversationId)
+        // 获取当前对话的系统提示词
+        systemPrompt = repository.getConversationSystemPrompt(conversationId)
         println("DEBUG: DisposableEffect loaded ${messages.size} messages for conversationId: $conversationId")
         chatState = ChatState(
             messages = messages,
@@ -126,7 +136,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            text = "花卷",
+                            text = "花卷 - $roleName",
                             fontWeight = FontWeight.Bold
                         )
                         if (repository.getDebugMode()) {
@@ -154,7 +164,11 @@ fun ChatScreen(
                         println("新建对话按钮被点击")
                         // 创建新对话
                         scope.launch {
-                            val newConversation = repository.createNewConversation("新对话")
+                            val newConversation = repository.createNewConversation(
+                                title = "新对话",
+                                roleName = "默认助手",
+                                systemPrompt = "你是一个AI助手"
+                            )
                             
                             // 先保存空消息列表到新对话
                             dbMutex.lock()
@@ -264,7 +278,8 @@ fun ChatScreen(
                             try {
                                 // 只传递用户消息给AI，排除初始的空AI消息
                                 val userMessagesOnly = updatedMessages.filter { it.isUser }
-                                val aiResponse = repository.getAIResponse(userMessagesOnly)
+                                // 使用新的方法，传入对话ID以获取系统提示词
+                                val aiResponse = repository.getAIResponse(userMessagesOnly, currentConversationId)
                                 
                                 // 更新消息内容
                                 val updatedMessages = chatState.messages.map { message ->
@@ -325,6 +340,7 @@ fun ChatScreen(
         ChatContentArea(
             messages = chatState.messages,
             repository = repository,
+            systemPrompt = systemPrompt,
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
@@ -339,6 +355,7 @@ fun ChatScreen(
 fun ChatContentArea(
     messages: List<Message>,
     repository: Repository,
+    systemPrompt: String,
     modifier: Modifier = Modifier
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
@@ -360,6 +377,14 @@ fun ChatContentArea(
                 )
             }
         }
+
+        // 显示系统提示词横幅（如果有）
+        if (systemPrompt.isNotBlank()) {
+            item {
+                SystemPromptBanner(systemPrompt = systemPrompt)
+            }
+        }
+
         items(messages, key = { message -> message.id }) { message ->
             if (!message.isUser) {
                 // AI回复气泡
@@ -397,7 +422,7 @@ fun ChatContentArea(
                             )
                         }
                     }
-                    
+
                     // 交互按钮
                     Row(
                         modifier = Modifier
@@ -437,7 +462,7 @@ fun ChatContentArea(
                                       else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        
+
                         IconButton(
                             onClick = { 
                                 isDisliked = !isDisliked
@@ -463,7 +488,7 @@ fun ChatContentArea(
                                       else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        
+
                         IconButton(
                             onClick = { 
                                 isCopied = true
@@ -491,7 +516,7 @@ fun ChatContentArea(
                                       else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        
+
                         IconButton(
                             onClick = { 
                                 isFavorited = !isFavorited
@@ -575,6 +600,47 @@ fun ChatContentArea(
                             .padding(start = 60.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun SystemPromptBanner(systemPrompt: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "系统提示",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = systemPrompt,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

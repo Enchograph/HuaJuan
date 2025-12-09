@@ -413,11 +413,7 @@ fun SideDrawer(
                                         }
                                     },
                                     colors = ListItemDefaults.colors(
-                                        containerColor = if (conversation.id == currentConversationId) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                        } else {
-                                            Color.Transparent
-                                        }
+                                        containerColor = Color.Transparent
                                     ),
                                     modifier = Modifier
                                         .combinedClickable(
@@ -441,8 +437,18 @@ fun SideDrawer(
                                             indication = null, // 移除长按波纹效果
                                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                                         )
+                                        .then(
+                                            if (conversation.id == currentConversationId) {
+                                                Modifier.background(
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                                )
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
                                         .padding(horizontal = 8.dp)
                                         .clip(RoundedCornerShape(12.dp))
+                                        /*
                                         .border(
                                             width = if (conversation.id == currentConversationId) 2.dp else 0.dp,
                                             color = if (conversation.id == currentConversationId) {
@@ -452,6 +458,7 @@ fun SideDrawer(
                                             },
                                             shape = RoundedCornerShape(12.dp)
                                         )
+                                        */
                                         .padding(horizontal = 8.dp)
                                         .onGloballyPositioned { coordinates ->
                                             // 存储当前项的位置信息，包括相对于屏幕的位置
@@ -535,11 +542,7 @@ fun SideDrawer(
                                     }
                                 },
                                 colors = ListItemDefaults.colors(
-                                    containerColor = if (conversation.id == currentConversationId) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                    } else {
-                                        Color.Transparent
-                                    }
+                                    containerColor = Color.Transparent
                                 ),
                                 modifier = Modifier
                                     .combinedClickable(
@@ -563,8 +566,18 @@ fun SideDrawer(
                                         indication = null, // 移除长按波纹效果
                                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                                     )
+                                    .then(
+                                        if (conversation.id == currentConversationId) {
+                                            Modifier.background(
+                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                            )
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                                     .padding(horizontal = 8.dp)
                                     .clip(RoundedCornerShape(12.dp))
+                                    /*
                                     .border(
                                         width = if (conversation.id == currentConversationId) 2.dp else 0.dp,
                                         color = if (conversation.id == currentConversationId) {
@@ -574,6 +587,7 @@ fun SideDrawer(
                                         },
                                         shape = RoundedCornerShape(12.dp)
                                     )
+                                    */
                                     .padding(horizontal = 8.dp)
                                     .onGloballyPositioned { coordinates ->
                                         // 存储当前项的位置信息，包括相对于屏幕的位置
@@ -897,7 +911,7 @@ private fun deleteConversation(conversationId: String, repository: Repository, c
         try {
             repository.deleteConversation(conversationId)
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "对话已删除", Toast.LENGTH_SHORT).show()
+                //Toast.makeText(context, "对话已删除", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {

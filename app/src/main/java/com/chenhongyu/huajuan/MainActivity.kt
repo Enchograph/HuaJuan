@@ -302,7 +302,8 @@ fun MainApp(
                                     scope.launch {
                                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                                     }
-                                }
+                                },
+                                repository = repository
                             )
                         }
                     }

@@ -211,7 +211,9 @@ class Repository(private val context: Context) {
                     id = entity.id,
                     title = entity.title,
                     lastMessage = entity.lastMessage,
-                    timestamp = entity.timestamp
+                    timestamp = entity.timestamp,
+                    roleName = entity.roleName,
+                    systemPrompt = entity.systemPrompt
                 )
             }
         }
@@ -233,7 +235,9 @@ class Repository(private val context: Context) {
                         id = conversationId,
                         title = "对话",
                         lastMessage = "",
-                        timestamp = java.util.Date()
+                        timestamp = java.util.Date(),
+                        roleName = "默认助手",
+                        systemPrompt = "你是一个AI助手"
                     )
                     conversationDao.insertConversation(newConversation)
                 }
@@ -262,7 +266,9 @@ class Repository(private val context: Context) {
                     id = conversationId,
                     title = "对话",
                     lastMessage = "",
-                    timestamp = java.util.Date()
+                    timestamp = java.util.Date(),
+                    roleName = "默认助手",
+                    systemPrompt = "你是一个AI助手"
                 )
                 conversationDao.insertConversation(newConversation)
             }
@@ -286,7 +292,7 @@ class Repository(private val context: Context) {
         }
     }
     
-    suspend fun createNewConversation(title: String): Conversation {
+    suspend fun createNewConversation(title: String, roleName: String = "默认助手", systemPrompt: String = "你是一个AI助手"): Conversation {
         // 在IO线程中执行数据库操作
         return withContext(Dispatchers.IO) {
             val newId = java.util.UUID.randomUUID().toString()
@@ -294,7 +300,9 @@ class Repository(private val context: Context) {
                 id = newId,
                 title = title,
                 lastMessage = "",
-                timestamp = java.util.Date()
+                timestamp = java.util.Date(),
+                roleName = roleName,
+                systemPrompt = systemPrompt
             )
             
             conversationDao.insertConversation(newConversationEntity)
@@ -303,7 +311,9 @@ class Repository(private val context: Context) {
                 id = newId,
                 title = title,
                 lastMessage = "",
-                timestamp = newConversationEntity.timestamp
+                timestamp = newConversationEntity.timestamp,
+                roleName = roleName,
+                systemPrompt = systemPrompt
             )
         }
     }
@@ -343,6 +353,47 @@ class Repository(private val context: Context) {
             if (conversation != null) {
                 val updatedConversation = conversation.copy(
                     title = title,
+                    timestamp = java.util.Date()
+                )
+                conversationDao.updateConversation(updatedConversation)
+            }
+        }
+    }
+    
+    /**
+     * 获取对话的角色名称
+     */
+    fun getConversationRoleName(conversationId: String): String {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val conversation = conversationDao.getConversationById(conversationId)
+                conversation?.roleName ?: "默认助手"
+            }
+        }
+    }
+    
+    /**
+     * 获取对话的系统提示词
+     */
+    fun getConversationSystemPrompt(conversationId: String): String {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val conversation = conversationDao.getConversationById(conversationId)
+                conversation?.systemPrompt ?: "你是一个AI助手"
+            }
+        }
+    }
+    
+    /**
+     * 更新对话的角色名称和系统提示词
+     */
+    suspend fun updateConversationRole(conversationId: String, roleName: String, systemPrompt: String) {
+        withContext(Dispatchers.IO) {
+            val conversation = conversationDao.getConversationById(conversationId)
+            if (conversation != null) {
+                val updatedConversation = conversation.copy(
+                    roleName = roleName,
+                    systemPrompt = systemPrompt,
                     timestamp = java.util.Date()
                 )
                 conversationDao.updateConversation(updatedConversation)
@@ -441,7 +492,7 @@ class Repository(private val context: Context) {
     }
     
     // 获取AI响应
-    suspend fun getAIResponse(messages: List<Message>): String {
+    suspend fun getAIResponse(messages: List<Message>, conversationId: String): String {
         try {
             // 使用模型API工厂创建相应服务
             val modelApiFactory = ModelApiFactory(this)
@@ -456,8 +507,16 @@ class Repository(private val context: Context) {
             val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
                 ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
             
-            // 将消息转换为网络消息格式
-            val networkMessages = messages.map { 
+            // 获取对话的系统提示词
+            val systemPrompt = getConversationSystemPrompt(conversationId)
+            
+            // 将消息转换为网络消息格式，并在最前面加上系统提示词
+            val networkMessages = listOf(
+                com.chenhongyu.huajuan.network.Message(
+                    role = "system",
+                    content = systemPrompt
+                )
+            ) + messages.map { 
                 com.chenhongyu.huajuan.network.Message(
                     role = if (it.isUser) "user" else "assistant",
                     content = it.text
@@ -470,6 +529,4 @@ class Repository(private val context: Context) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }
     }
-    
-
 }
