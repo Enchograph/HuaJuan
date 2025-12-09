@@ -125,13 +125,29 @@ class Repository(private val context: Context) {
         val model = getSelectedModelForProvider(currentProvider)
         return if (model.isNotEmpty()) model else "GPT-3.5 Turbo"
     }
-    
+
     // 设置当前服务商选中的模型（向后兼容）
     fun setSelectedModel(selectedModel: String) {
         val currentProvider = getServiceProvider()
         setSelectedModelForProvider(currentProvider, selectedModel)
     }
-    
+
+    // 用户信息持久化（用户名、签名、头像字符）
+    fun getUserInfo(): UserInfo {
+        val username = prefs.getString("user_name", "用户名") ?: "用户名"
+        val signature = prefs.getString("user_signature", "个性签名") ?: "个性签名"
+        val avatar = prefs.getString("user_avatar", "U") ?: "U"
+        return UserInfo(username = username, signature = signature, avatar = avatar)
+    }
+
+    fun setUserInfo(userInfo: UserInfo) {
+        prefs.edit()
+            .putString("user_name", userInfo.username)
+            .putString("user_signature", userInfo.signature)
+            .putString("user_avatar", userInfo.avatar)
+            .apply()
+    }
+
     fun getCustomApiUrl(): String {
         return prefs.getString("custom_api_url", "") ?: ""
     }

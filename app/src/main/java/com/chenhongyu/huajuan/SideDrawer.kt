@@ -1,6 +1,9 @@
 package com.chenhongyu.huajuan
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -651,10 +654,62 @@ fun SideDrawer(
                             showContextMenu = false
                         },
                         onShare = {
-                            // 分享功能待实现
+                            // 分享功能 - 使用应用级持久化的用户信息并使用Compose scope
                             println("DEBUG: Share conversation")
-                            showContextMenu = false
-                            selectedConversation = null
+                            val ctx = context
+                            val conv = conversation
+                            // use the remembered scope instead of GlobalScope
+                            scope.launch {
+                                try {
+                                    // Fetch messages on IO
+                                    val messages = withContext(Dispatchers.IO) {
+                                        repository.getMessages(conv.id)
+                                    }
+                                    val modelName = repository.getSelectedModel()
+                                    val userInfo = repository.getUserInfo()
+
+                                    // Call share helper (suspend) from coroutine
+                                    com.chenhongyu.huajuan.share.ShareHelper.shareConversationAsHtml(
+                                        ctx,
+                                        conv,
+                                        messages,
+                                        userInfo.username,
+                                        userInfo.signature,
+                                        modelName
+                                    )
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(ctx, "分享失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        },
+                        onOpenInBrowser = {
+                            // Generate HTML file and open in local browser
+                            val ctx = context
+                            val conv = conversation
+                            scope.launch {
+                                try {
+                                    val messages = withContext(Dispatchers.IO) { repository.getMessages(conv.id) }
+                                    val userInfo = repository.getUserInfo()
+                                    val file = com.chenhongyu.huajuan.share.ShareHelper.generateConversationHtmlFile(ctx, conv, messages, userInfo.username, userInfo.signature, repository.getSelectedModel())
+
+                                    val authority = "com.chenhongyu.huajuan.fileprovider"
+                                    val uri = FileProvider.getUriForFile(ctx, authority, file)
+
+                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, "text/html")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    ctx.startActivity(viewIntent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(ctx, "打开失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
                         },
                         onDelete = {
                             scope.launch {
@@ -726,6 +781,7 @@ fun ContextMenu(
     onPin: () -> Unit,
     onEdit: () -> Unit,
     onShare: () -> Unit,
+    onOpenInBrowser: () -> Unit,
     onDelete: () -> Unit
 ) {
     // 获取屏幕尺寸
@@ -795,6 +851,14 @@ fun ContextMenu(
                     }
                 )
                 
+                ContextMenuItem(
+                    icon = Icons.Default.OpenInBrowser,
+                    text = "在浏览器中打开",
+                    onClick = {
+                        onOpenInBrowser()
+                    }
+                )
+
                 ContextMenuItem(
                     icon = Icons.Default.Delete,
                     text = "删除对话",
@@ -907,7 +971,7 @@ fun EditTitleDialog(
 }
 
 private fun deleteConversation(conversationId: String, repository: Repository, context: Context) {
-    kotlinx.coroutines.GlobalScope.launch {
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
         try {
             repository.deleteConversation(conversationId)
             withContext(Dispatchers.Main) {
@@ -922,7 +986,7 @@ private fun deleteConversation(conversationId: String, repository: Repository, c
 }
 
 private fun updateConversationTitle(conversationId: String, title: String, repository: Repository, context: Context) {
-    kotlinx.coroutines.GlobalScope.launch {
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
         try {
             repository.updateConversationTitle(conversationId, title)
             withContext(Dispatchers.Main) {

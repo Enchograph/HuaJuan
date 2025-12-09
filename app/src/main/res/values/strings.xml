@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">HuaJuan</string>
+    <string name="app_package">com.chenhongyu.huajuan</string>
+    <string name="file_provider_authority">%1$s.fileprovider</string>
 </resources>
