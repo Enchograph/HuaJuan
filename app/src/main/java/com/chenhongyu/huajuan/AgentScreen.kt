@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 fun AgentScreen(
     onMenuClick: () -> Unit,
     onBack: () -> Unit,
-    repository: Repository
+    repository: Repository,
+    onConversationCreated: (String) -> Unit = {} // callback to notify parent of created conversation id
 ) {
     val agentProvider = AgentProvider()
     val agents = agentProvider.getAgents()
@@ -87,6 +88,8 @@ fun AgentScreen(
                             roleName = agent.name, 
                             systemPrompt = agent.systemPrompt
                         )
+                        // notify parent immediately so it can update AppState and UI
+                        onConversationCreated(newConversation.id)
                         // 切换回聊天页面
                         onBack()
                     }
@@ -169,7 +172,7 @@ fun AgentCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Row(
             modifier = Modifier
@@ -177,7 +180,7 @@ fun AgentCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 使用 iconResId 显示图标（如果提供）
+            // Avatar with initials
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -185,21 +188,12 @@ fun AgentCard(
                     .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                if (agent.iconResId != 0) {
-                    Icon(
-                        painter = painterResource(id = agent.iconResId),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Android,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
+                Text(
+                    text = agent.name.take(1),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold
+                )
             }
             
             Spacer(modifier = Modifier.width(16.dp))
@@ -221,7 +215,8 @@ fun AgentCard(
                     text = agent.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -230,11 +225,12 @@ fun AgentCard(
                     text = agent.systemPrompt,  // 显示系统提示词预览
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
             
-            // 新建对话按钮
+            // 新建对话按钮 — 更直观的交互：用Add图标并加一个Chevron指示导航
             IconButton(
                 onClick = onClick,
                 modifier = Modifier
@@ -248,9 +244,17 @@ fun AgentCard(
                     imageVector = Icons.Default.Add,
                     contentDescription = "新建对话",
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

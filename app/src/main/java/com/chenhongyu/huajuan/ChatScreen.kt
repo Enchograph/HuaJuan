@@ -1,3 +1,5 @@
+@file:Suppress("unused", "DEPRECATION")
+
 package com.chenhongyu.huajuan
 
 import android.widget.Toast
@@ -7,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,6 +44,7 @@ import com.mikepenz.markdown.m3.markdownTypography
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,7 +57,14 @@ import com.chenhongyu.huajuan.data.ChatState
 import com.chenhongyu.huajuan.data.AppState
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlin.math.max
 import kotlin.math.roundToInt
+import com.chenhongyu.huajuan.stream.ChatEvent
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.derivedStateOf
 
 fun formatTime(date: Date): String {
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -105,6 +116,8 @@ fun ChatScreen(
     var roleName by remember { mutableStateOf("默认助手") }
     // 获取当前对话的系统提示词
     var systemPrompt by remember { mutableStateOf("你是一个AI助手") }
+    // 控制编辑系统提示词对话框显示
+    var showEditPromptDialog by remember { mutableStateOf(false) }
 
     // 数据库操作互斥锁，防止并发访问
     val dbMutex = remember { kotlinx.coroutines.sync.Mutex() }
@@ -130,6 +143,9 @@ fun ChatScreen(
         }
     }
     
+    val listState = rememberLazyListState()
+    var pendingNewChunks by remember { mutableStateOf(0) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -159,7 +175,11 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { 
+                    // 编辑系统提示词按钮
+                    IconButton(onClick = { showEditPromptDialog = true }) {
+                        Icon(Icons.Outlined.Settings, contentDescription = "会话设置")
+                    }
+                     IconButton(onClick = {
                         /* 新建对话 */
                         println("新建对话按钮被点击")
                         // 创建新对话
@@ -276,59 +296,62 @@ fun ChatScreen(
 
                             // 获取AI响应
                             try {
-                                // 只传递用户消息给AI，排除初始的空AI消息
                                 val userMessagesOnly = updatedMessages.filter { it.isUser }
-                                // 使用新的方法，传入对话ID以获取系统提示词
-                                val aiResponse = repository.getAIResponse(userMessagesOnly, currentConversationId)
-                                
-                                // 更新消息内容
-                                val updatedMessages = chatState.messages.map { message ->
-                                    if (message.id == aiMessageId) {
-                                        message.copy(text = aiResponse)
-                                    } else {
-                                        message
-                                    }
-                                }
-                                chatState = chatState.copy(messages = updatedMessages)
-                                
-                                // 保存所有消息
-                                dbMutex.lock()
-                                try {
-                                    repository.saveMessages(currentConversationId, chatState.messages)
-                                } finally {
-                                    dbMutex.unlock()
-                                }
+                                // Collect stream and append chunks
+                                repository.streamAIResponse(userMessagesOnly, currentConversationId).collect { event ->
+                                    val eventTime = System.currentTimeMillis()
+                                    println("UI-STREAM-DEBUG: received event=${event.javaClass.simpleName} at=${eventTime} thread=${Thread.currentThread().name}")
+                                    when (event) {
+                                        is ChatEvent.Chunk -> {
+                                            println("UI-STREAM-DEBUG: chunk textPreview='${event.text.take(200)}' at=${System.currentTimeMillis()}")
+                                            val updatedMessages2 = chatState.messages.map { message ->
+                                                if (message.id == aiMessageId) {
+                                                    message.copy(text = message.text + event.text)
+                                                } else message
+                                            }
+                                            chatState = chatState.copy(messages = updatedMessages2)
 
-                                // 更新对话列表中的最后消息为AI回复
-                                if (aiResponse.isNotEmpty()) {
-                                    dbMutex.lock()
-                                    try {
-                                        repository.updateLastMessage(currentConversationId, aiResponse)
-                                        // 注意：这里我们需要通过函数来更新appState.conversations而不是直接赋值
-                                        appState.conversations = repository.getConversations()
-                                    } finally {
-                                        dbMutex.unlock()
+                                            // Auto-scroll if user is at (or near) bottom
+                                            val layoutInfo = listState.layoutInfo
+                                            val total = chatState.messages.size
+                                            val isAtBottom = if (layoutInfo.visibleItemsInfo.isEmpty()) true else {
+                                                layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 >= total - 2
+                                            }
+                                            if (isAtBottom) {
+                                                scope.launch { listState.animateScrollToItem(max(0, total - 1)) }
+                                            } else {
+                                                pendingNewChunks += 1
+                                            }
+                                        }
+                                        is ChatEvent.Error -> {
+                                            val updatedMessages2 = chatState.messages.map { message ->
+                                                if (message.id == aiMessageId) message.copy(text = "错误：${event.message}") else message
+                                            }
+                                            chatState = chatState.copy(messages = updatedMessages2)
+                                            // persist
+                                            dbMutex.lock()
+                                            try { repository.saveMessages(currentConversationId, chatState.messages) } finally { dbMutex.unlock() }
+                                        }
+                                        is ChatEvent.Done -> {
+                                            // save final
+                                            dbMutex.lock()
+                                            try { repository.saveMessages(currentConversationId, chatState.messages) } finally { dbMutex.unlock() }
+                                            // update conversation summary
+                                            dbMutex.lock()
+                                            try { repository.updateLastMessage(currentConversationId, chatState.messages.lastOrNull()?.text ?: "")
+                                                  appState.conversations = repository.getConversations()
+                                            } finally { dbMutex.unlock() }
+                                        }
                                     }
                                 }
                             } catch (e: Exception) {
                                 Toast.makeText(context, "获取AI回复失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                // 更新消息内容为错误信息
-                                val updatedMessages = chatState.messages.map { message ->
-                                    if (message.id == aiMessageId) {
-                                        message.copy(text = "获取回复失败: ${e.message}")
-                                    } else {
-                                        message
-                                    }
+                                val updatedMessages2 = chatState.messages.map { message ->
+                                    if (message.id == aiMessageId) message.copy(text = "获取回复失败: ${e.message}") else message
                                 }
-                                chatState = chatState.copy(messages = updatedMessages)
-
-                                // 保存错误消息
+                                chatState = chatState.copy(messages = updatedMessages2)
                                 dbMutex.lock()
-                                try {
-                                    repository.saveMessages(currentConversationId, updatedMessages)
-                                } finally {
-                                    dbMutex.unlock()
-                                }
+                                try { repository.saveMessages(currentConversationId, updatedMessages2) } finally { dbMutex.unlock() }
                             }
                         }
                     }
@@ -337,13 +360,92 @@ fun ChatScreen(
         },
         containerColor = MaterialTheme.colorScheme.surface
     ) { paddingValues -> 
-        ChatContentArea(
-            messages = chatState.messages,
-            repository = repository,
-            systemPrompt = systemPrompt,
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
+         ChatContentArea(
+             messages = chatState.messages,
+             repository = repository,
+             systemPrompt = systemPrompt,
+             listState = listState,
+             modifier = Modifier
+                 .padding(paddingValues)
+                 .fillMaxSize()
+         )
+     }
+
+    // Small overlay: when new chunks arrive while user scrolled up, show a small indicator
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (pendingNewChunks > 0) {
+            FloatingActionButton(
+                onClick = {
+                    // scroll to bottom
+                    scope.launch {
+                        listState.animateScrollToItem(max(0, chatState.messages.size - 1))
+                        pendingNewChunks = 0
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Text("新消息")
+            }
+        }
+    }
+
+    // 编辑系统提示词对话框
+    if (showEditPromptDialog) {
+        val conversationId = appState.currentConversationId ?: "default"
+        var editRole by remember { mutableStateOf(roleName) }
+        var editPrompt by remember { mutableStateOf(systemPrompt) }
+
+        AlertDialog(
+            onDismissRequest = { showEditPromptDialog = false },
+            title = { Text("编辑会话角色与系统提示") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editRole,
+                        onValueChange = { editRole = it },
+                        label = { Text("角色名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editPrompt,
+                        onValueChange = { editPrompt = it },
+                        label = { Text("系统提示词") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp),
+                        maxLines = 6
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // 保存到数据库
+                    val convId = conversationId
+                    scope.launch {
+                        try {
+                            repository.updateConversationRole(convId, editRole, editPrompt)
+                            // 更新界面状态
+                            roleName = editRole
+                            systemPrompt = editPrompt
+                            // 更新对话列表摘要
+                            appState.conversations = repository.getConversations()
+                        } catch (e: Exception) {
+                            // ignore for now, UI could show a toast
+                        } finally {
+                            showEditPromptDialog = false
+                        }
+                    }
+                }) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditPromptDialog = false }) { Text("取消") }
+            }
         )
     }
 }
@@ -356,6 +458,7 @@ fun ChatContentArea(
     messages: List<Message>,
     repository: Repository,
     systemPrompt: String,
+    listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
@@ -365,7 +468,8 @@ fun ChatContentArea(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(16.dp),
-        userScrollEnabled = true
+        userScrollEnabled = true,
+        state = listState
     ) {
         // 显示当前消息数量的调试信息
         if (repository.getDebugMode()) {
@@ -619,16 +723,10 @@ fun SystemPromptBanner(systemPrompt: String) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+            // removed warning/info icon as requested and replaced with a cleaner layout
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "系统提示",
+                    text = "AI设定",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSecondaryContainer

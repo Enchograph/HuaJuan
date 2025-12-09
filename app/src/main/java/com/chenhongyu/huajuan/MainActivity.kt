@@ -1,4 +1,3 @@
-
 package com.chenhongyu.huajuan
 
 import android.os.Bundle
@@ -303,7 +302,22 @@ fun MainApp(
                                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                                     }
                                 },
-                                repository = repository
+                                repository = repository,
+                                onConversationCreated = { newConversationId ->
+                                    // Update app state so UI reflects the new conversation immediately
+                                    appState = appState.copy(
+                                        currentConversationId = newConversationId
+                                    )
+                                    appState = appState.copy(
+                                        conversations = repository.getConversations()
+                                    )
+                                    // switch to chat page
+                                    currentPage.value = 0
+                                    // close drawer
+                                    scope.launch {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
                             )
                         }
                     }

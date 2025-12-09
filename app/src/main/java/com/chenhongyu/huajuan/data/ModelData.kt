@@ -56,7 +56,7 @@ class ModelDataProvider(private val repository: Repository) {
         val predefinedServiceProviders = mapOf(
             "硅基流动" to ServiceProviderInfo(
                 "硅基流动",
-                "https://api.siliconflow.cn/v1",
+                "https://api.siliconflow.cn/v1/chat/completions/",
                 listOf(
                     ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2"),
                     ModelInfo("DeepSeek-V3.1-Terminus", "deepseek-ai/DeepSeek-V3.1-Terminus"),
@@ -90,7 +90,7 @@ class ModelDataProvider(private val repository: Repository) {
             ),
             "火山引擎" to ServiceProviderInfo(
                 "火山引擎",
-                "https://ark.cn-beijing.volces.com/api/v3",
+                "https://ark.cn-beijing.volces.com/api/v3/chat/completions/",
                 listOf(
                     ModelInfo("Seedream 4.5", "Doubao-Seedream-4.5"),
                     ModelInfo("Seedream 4.0", "Doubao-Seedream-4.0"),
@@ -105,7 +105,7 @@ class ModelDataProvider(private val repository: Repository) {
             ),
             "SoruxGPT" to ServiceProviderInfo(
                 "SoruxGPT",
-                "https://ai.soruxgpt.com/v1",
+                "https://ai.soruxgpt.com/v1/chat/completions/",
                 listOf(
                     ModelInfo("ChatGPT-4o", "chatgpt-4o"),
                     ModelInfo("Claude-Sonnet", "claude-sonnet"),

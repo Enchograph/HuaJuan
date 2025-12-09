@@ -404,9 +404,10 @@ class Repository(private val context: Context) {
     // 创建OkHttpClient实例
     private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Avoid BODY level for general client to prevent accidental buffering of streaming responses.
+            level = HttpLoggingInterceptor.Level.HEADERS
         }
-        
+
         return OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -528,5 +529,38 @@ class Repository(private val context: Context) {
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }
+    }
+
+    // 兼容性的流式输出包装：如果后端/本地模型不支持原生流式API，
+    // 我们仍然可以将完整回复按词或固定大小分块后以Flow的方式逐步发出，
+    // 从而为UI提供平滑的流式渲染体验。
+    fun streamAIResponse(messages: List<Message>, conversationId: String): kotlinx.coroutines.flow.Flow<com.chenhongyu.huajuan.stream.ChatEvent> {
+        // Build modelInfo and networkMessages then return underlying service Flow directly
+        val modelApiFactory = ModelApiFactory(this)
+        val modelApiService = modelApiFactory.getCurrentModelApiService()
+
+        val serviceProvider = getServiceProvider()
+        val selectedModelDisplayName = getSelectedModel()
+
+        val modelDataProvider = ModelDataProvider(this)
+        val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+        val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
+            ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
+
+        val systemPrompt = getConversationSystemPrompt(conversationId)
+
+        val networkMessages = listOf(
+            com.chenhongyu.huajuan.network.Message(
+                role = "system",
+                content = systemPrompt
+            )
+        ) + messages.map {
+            com.chenhongyu.huajuan.network.Message(
+                role = if (it.isUser) "user" else "assistant",
+                content = it.text
+            )
+        }
+
+        return modelApiService.streamAIResponse(networkMessages, modelInfo)
     }
 }
