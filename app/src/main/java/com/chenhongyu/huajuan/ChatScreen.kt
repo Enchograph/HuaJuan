@@ -24,8 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,16 +129,18 @@ fun ChatScreen(
                             text = "花卷",
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "当前对话ID: ${appState.currentConversationId ?: "default"}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = repository.getSelectedModel(),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (repository.getDebugMode()) {
+                            Text(
+                                text = "当前对话ID: ${appState.currentConversationId ?: "default"}",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = repository.getSelectedModel(),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -320,6 +324,7 @@ fun ChatScreen(
     ) { paddingValues -> 
         ChatContentArea(
             messages = chatState.messages,
+            repository = repository,
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
@@ -333,6 +338,7 @@ fun ChatScreen(
 @Composable
 fun ChatContentArea(
     messages: List<Message>,
+    repository: Repository,
     modifier: Modifier = Modifier
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
@@ -345,12 +351,14 @@ fun ChatContentArea(
         userScrollEnabled = true
     ) {
         // 显示当前消息数量的调试信息
-        item {
-            Text(
-                text = "消息数量: ${messages.size}",
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(8.dp)
-            )
+        if (repository.getDebugMode()) {
+            item {
+                Text(
+                    text = "消息数量: ${messages.size}",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
         }
         items(messages, key = { message -> message.id }) { message ->
             if (!message.isUser) {
@@ -401,10 +409,17 @@ fun ChatContentArea(
                         var isDisliked by remember { mutableStateOf(false) }
                         var isCopied by remember { mutableStateOf(false) }
                         var isFavorited by remember { mutableStateOf(false) }
+                        val context = LocalContext.current
+                        val clipboardManager = LocalClipboardManager.current
                         
                         IconButton(
                             onClick = { 
                                 isLiked = !isLiked
+                                if (isLiked) {
+                                    Toast.makeText(context, "已点赞该回复", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "已取消点赞", Toast.LENGTH_SHORT).show()
+                                }
                                 println("${if (isLiked) "已点赞" else "取消点赞"}消息")
                             },
                             modifier = Modifier
@@ -426,6 +441,11 @@ fun ChatContentArea(
                         IconButton(
                             onClick = { 
                                 isDisliked = !isDisliked
+                                if (isDisliked) {
+                                    Toast.makeText(context, "已点踩该回复", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "已取消点踩", Toast.LENGTH_SHORT).show()
+                                }
                                 println("${if (isDisliked) "已点踩" else "取消点踩"}消息")
                             },
                             modifier = Modifier
@@ -447,6 +467,8 @@ fun ChatContentArea(
                         IconButton(
                             onClick = { 
                                 isCopied = true
+                                clipboardManager.setText(AnnotatedString(message.text))
+                                Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
                                 println("已复制消息")
                                 // 重置复制状态
                                 scope.launch {
@@ -473,6 +495,11 @@ fun ChatContentArea(
                         IconButton(
                             onClick = { 
                                 isFavorited = !isFavorited
+                                if (isFavorited) {
+                                    Toast.makeText(context, "已收藏该回复", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
+                                }
                                 println("${if (isFavorited) "已收藏" else "取消收藏"}消息")
                             },
                             modifier = Modifier

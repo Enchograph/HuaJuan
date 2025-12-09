@@ -27,6 +27,9 @@ class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
     private val DARK_MODE_KEY = "dark_mode"
     
+    // 调试模式设置的键名
+    private val DEBUG_MODE_KEY = "debug_mode"
+    
     // SharedPreferences的名字
     private val PREFS_NAME = "hua_juan_prefs"
     
@@ -50,6 +53,20 @@ class Repository(private val context: Context) {
      */
     fun setDarkMode(isDarkMode: Boolean) {
         prefs.edit().putBoolean(DARK_MODE_KEY, isDarkMode).apply()
+    }
+    
+    /**
+     * 获取调试模式设置
+     */
+    fun getDebugMode(): Boolean {
+        return prefs.getBoolean(DEBUG_MODE_KEY, false)
+    }
+    
+    /**
+     * 设置调试模式
+     */
+    fun setDebugMode(isDebugMode: Boolean) {
+        prefs.edit().putBoolean(DEBUG_MODE_KEY, isDebugMode).apply()
     }
     
     // 其他方法...

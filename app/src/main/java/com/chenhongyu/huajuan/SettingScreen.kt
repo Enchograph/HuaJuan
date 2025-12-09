@@ -77,6 +77,7 @@ fun SettingScreen(
     }
     var userInfo by remember { mutableStateOf(UserInfo()) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var debugMode by remember { mutableStateOf<Boolean>(repository.getDebugMode()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
@@ -274,58 +275,96 @@ fun SettingScreen(
                         
                         Spacer(Modifier.height(16.dp))
                         
-                        // 清空对话数据库按钮
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        // 获取所有对话
-                                        val conversations = repository.getConversations()
-                                        // 删除所有对话（会级联删除所有消息）
-                                        conversations.forEach { conversation -> 
-                                            repository.deleteConversation(conversation.id)
-                                        }
-                                        Toast.makeText(context, "已清空所有对话", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "清空对话失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("清空对话数据库")
+                            Column(
+                                modifier = Modifier.padding(end = 16.dp)
+                            ) {
+                                Text(
+                                    text = "调试模式",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (debugMode) "已启用" else "已禁用",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = debugMode,
+                                onCheckedChange = { 
+                                    debugMode = it
+                                    repository.setDebugMode(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurface,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            )
                         }
                         
-                        // 一键新建一百条对话按钮
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        for (i in 1..100) {
-                                            repository.createNewConversation("测试对话 #$i")
+                        if (debugMode) {
+                            Spacer(Modifier.height(16.dp))
+                            
+                            // 清空对话数据库按钮
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            // 获取所有对话
+                                            val conversations = repository.getConversations()
+                                            // 删除所有对话（会级联删除所有消息）
+                                            conversations.forEach { conversation -> 
+                                                repository.deleteConversation(conversation.id)
+                                            }
+                                            Toast.makeText(context, "已清空所有对话", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "清空对话失败: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
-                                        Toast.makeText(context, "已创建100条测试对话", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "创建对话失败: ${e.message}", Toast.LENGTH_LONG).show()
                                     }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("一键新建一百条对话")
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("清空对话数据库")
+                            }
+                            
+                            // 一键新建一百条对话按钮
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            for (i in 1..100) {
+                                                repository.createNewConversation("测试对话 #$i")
+                                            }
+                                            Toast.makeText(context, "已创建100条测试对话", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "创建对话失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("一键新建一百条对话")
+                            }
                         }
                     }
                 }
