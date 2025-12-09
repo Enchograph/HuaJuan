@@ -112,9 +112,9 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
                 call = localCall
                 localCall.execute().use { resp ->
                     val now = System.currentTimeMillis()
-                    println("STREAM-DEBUG: response received status=${resp.code} protocol=${resp.protocol} at=$now thread=${Thread.currentThread().name}")
+                    //println("STREAM-DEBUG: response received status=${resp.code} protocol=${resp.protocol} at=$now thread=${Thread.currentThread().name}")
                     // Log some headers that indicate streaming behavior
-                    println("STREAM-DEBUG: headers=${resp.headers}")
+                    //println("STREAM-DEBUG: headers=${resp.headers}")
 
                     if (!resp.isSuccessful) {
                         trySend(ChatEvent.Error("HTTP ${resp.code} - ${resp.message}"))
@@ -135,12 +135,12 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
                     while (reader.readLine().also { line = it } != null) {
                         val readTime = System.currentTimeMillis()
                         val raw = line!!.trim()
-                        println("STREAM-DEBUG: readLine at=$readTime thread=${Thread.currentThread().name} raw='${raw}'")
+                        //println("STREAM-DEBUG: readLine at=$readTime thread=${Thread.currentThread().name} raw='${raw}'")
                         if (raw.isEmpty()) continue
 
                         if (raw.startsWith("data:")) {
                             val payload = raw.removePrefix("data:").trim()
-                            println("STREAM-DEBUG: data-payload at=$readTime payload='${payload.take(200)}'")
+                            //println("STREAM-DEBUG: data-payload at=$readTime payload='${payload.take(200)}'")
                             if (payload == "[DONE]") {
                                 trySend(ChatEvent.Done)
                                 break
@@ -165,27 +165,27 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
                                 }
 
                                 if (!textChunk.isNullOrEmpty()) {
-                                    println("STREAM-DEBUG: emitting chunk at=${System.currentTimeMillis()} len=${textChunk.length} thread=${Thread.currentThread().name} textPreview='${textChunk.take(200)}'")
+                                    //println("STREAM-DEBUG: emitting chunk at=${System.currentTimeMillis()} len=${textChunk.length} thread=${Thread.currentThread().name} textPreview='${textChunk.take(200)}'")
                                     trySend(ChatEvent.Chunk(textChunk))
                                 }
                             } catch (je: Exception) {
                                 je.printStackTrace()
-                                println("STREAM-DEBUG: emitting raw payload at=${System.currentTimeMillis()}")
+                                //println("STREAM-DEBUG: emitting raw payload at=${System.currentTimeMillis()}")
                                 trySend(ChatEvent.Chunk(payload))
                             }
                         } else {
                             try {
                                 val json = gson.fromJson(raw, com.google.gson.JsonObject::class.java)
                                 if (json.has("text")) {
-                                    println("STREAM-DEBUG: emitting text field at=${System.currentTimeMillis()}")
+                                    //println("STREAM-DEBUG: emitting text field at=${System.currentTimeMillis()}")
                                     trySend(ChatEvent.Chunk(json.get("text").asString))
                                 } else {
-                                    println("STREAM-DEBUG: emitting raw line at=${System.currentTimeMillis()}")
+                                    //println("STREAM-DEBUG: emitting raw line at=${System.currentTimeMillis()}")
                                     trySend(ChatEvent.Chunk(raw))
                                 }
                             } catch (e: Exception) {
                                 e.printStackTrace()
-                                println("STREAM-DEBUG: emitting raw fallback at=${System.currentTimeMillis()}")
+                                //println("STREAM-DEBUG: emitting raw fallback at=${System.currentTimeMillis()}")
                                 trySend(ChatEvent.Chunk(raw))
                             }
                         }

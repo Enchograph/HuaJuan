@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -131,12 +132,12 @@ fun ChatScreen(
         roleName = repository.getConversationRoleName(conversationId)
         // 获取当前对话的系统提示词
         systemPrompt = repository.getConversationSystemPrompt(conversationId)
-        println("DEBUG: DisposableEffect loaded ${messages.size} messages for conversationId: $conversationId")
+        //println("DEBUG: DisposableEffect loaded ${messages.size} messages for conversationId: $conversationId")
         chatState = ChatState(
             messages = messages,
             inputText = ""
         )
-        println("DEBUG: Updated chatState with new messages, total messages: ${chatState.messages.size}")
+        //println("DEBUG: Updated chatState with new messages, total messages: ${chatState.messages.size}")
         
         onDispose {
             // 清理工作（如果需要）
@@ -145,6 +146,34 @@ fun ChatScreen(
     
     val listState = rememberLazyListState()
     var pendingNewChunks by remember { mutableStateOf(0) }
+
+    // Improved auto-scroll control
+    val density = LocalDensity.current
+    val BOTTOM_THRESHOLD_DP = 48.dp
+    val BOTTOM_THRESHOLD_PX = with(density) { BOTTOM_THRESHOLD_DP.toPx().roundToInt() }
+    val USER_SCROLL_GRACE_MS = 1200L
+    val LAYOUT_STABILIZE_MS = 350L
+
+    var isAutoScrolling by remember { mutableStateOf(false) }
+    var lastUserScrollTime by remember { mutableStateOf(0L) }
+    var ignoreAutoScrollUntil by remember { mutableStateOf(0L) }
+    var autoScrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    // Detect user-initiated scrolls and cancel auto-scroll if user intervenes
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { inProgress ->
+                if (inProgress) {
+                    // If a user scroll starts while an auto-scroll coroutine is running, cancel it
+                    if (isAutoScrolling) {
+                        autoScrollJob?.cancel()
+                        autoScrollJob = null
+                        isAutoScrolling = false
+                    }
+                    lastUserScrollTime = System.currentTimeMillis()
+                }
+            }
+    }
 
     Scaffold(
         topBar = {
@@ -314,13 +343,41 @@ fun ChatScreen(
                                             // Auto-scroll if user is at (or near) bottom
                                             val layoutInfo = listState.layoutInfo
                                             val total = chatState.messages.size
-                                            val isAtBottom = if (layoutInfo.visibleItemsInfo.isEmpty()) true else {
-                                                layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 >= total - 2
+
+                                            // Robust pixel-based "at bottom" detection
+                                            val visible = layoutInfo.visibleItemsInfo
+                                            val isAtBottom = if (visible.isEmpty()) {
+                                                true
+                                            } else {
+                                                val last = visible.lastOrNull()!!
+                                                val indexOk = last.index >= total - 1
+                                                val pixelOk = (last.offset + last.size) >= (layoutInfo.viewportEndOffset - BOTTOM_THRESHOLD_PX)
+                                                indexOk && pixelOk
                                             }
-                                            if (isAtBottom) {
-                                                scope.launch { listState.animateScrollToItem(max(0, total - 1)) }
+
+                                            val now = System.currentTimeMillis()
+                                            val userScrolledRecently = now - lastUserScrollTime < USER_SCROLL_GRACE_MS
+                                            val layoutStabilizing = now < ignoreAutoScrollUntil
+
+                                            if (isAtBottom && !userScrolledRecently && !isAutoScrolling && !layoutStabilizing) {
+                                                // Launch a cancelable auto-scroll job
+                                                autoScrollJob = scope.launch {
+                                                    try {
+                                                        isAutoScrolling = true
+                                                        listState.animateScrollToItem(max(0, total - 1))
+                                                    } catch (e: Exception) {
+                                                        // animation cancelled or failed; ignore
+                                                        println("UI-STREAM-DEBUG: auto-scroll cancelled or failed: ${e.message}")
+                                                    } finally {
+                                                        isAutoScrolling = false
+                                                        autoScrollJob = null
+                                                    }
+                                                }
+                                                // Briefly ignore further auto-scrolls while layout may be adjusting
+                                                ignoreAutoScrollUntil = System.currentTimeMillis() + LAYOUT_STABILIZE_MS
                                             } else {
                                                 pendingNewChunks += 1
+                                                println("UI-STREAM-DEBUG: not auto-scrolling (isAtBottom=$isAtBottom, userScrolledRecently=$userScrolledRecently, isAutoScrolling=$isAutoScrolling, layoutStabilizing=$layoutStabilizing). pendingNewChunks=$pendingNewChunks")
                                             }
                                         }
                                         is ChatEvent.Error -> {
