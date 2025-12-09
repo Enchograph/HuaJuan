@@ -23,7 +23,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Repository
@@ -43,11 +46,20 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
-import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.combinedClickable
 import com.chenhongyu.huajuan.data.Conversation
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * 侧边栏导航
@@ -61,7 +73,8 @@ fun SideDrawer(
     onAgentPageSelected: () -> Unit,
     conversations: List<Conversation>,
     drawerWidth: Dp,
-    darkTheme: Boolean
+    darkTheme: Boolean,
+    repository: Repository
 ) {
     HuaJuanTheme(darkTheme = darkTheme) {
         ModalDrawerSheet(
@@ -70,6 +83,15 @@ fun SideDrawer(
             drawerTonalElevation = 1.dp,
             drawerShape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 0.dp, bottomEnd = 0.dp)
         ) {
+            var showContextMenu by remember { mutableStateOf(false) }
+            var selectedConversation by remember { mutableStateOf<Conversation?>(null) }
+            var showEditDialog by remember { mutableStateOf(false) }
+            var newTitle by remember { mutableStateOf("") }
+            val scope = rememberCoroutineScope()
+            var menuPosition by remember { mutableStateOf(Offset.Zero) }
+            var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
+            val conversationPositions = remember { mutableStateMapOf<String, Pair<Offset, androidx.compose.ui.geometry.Size>>() }
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -150,7 +172,7 @@ fun SideDrawer(
                                     imageVector = Icons.Outlined.Notifications,
                                     contentDescription = "通知",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    )
                             }
 
                             IconButton(
@@ -185,7 +207,6 @@ fun SideDrawer(
 
                 // 可滚动的内容区域 (第二和第三区块)
                 val listState = rememberLazyListState()
-                val scope = rememberCoroutineScope()
                 var showBackToTop by remember { mutableStateOf(false) }
 
                 // 监听滚动状态以确定是否显示"回到花卷"按钮
@@ -338,43 +359,77 @@ fun SideDrawer(
                     }
 
                     items(conversations) { conversation ->
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    text = conversation.title,
-                                    maxLines = 1,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            leadingContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(RoundedCornerShape(12.dp)) // 圆形彩色背景图标
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.ChatBubbleOutline,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(20.dp)
+                        Box(
+                            modifier = Modifier.then(
+                                if (showContextMenu && selectedConversation?.id == conversation.id) 
+                                    Modifier.blur(radius = 0.dp) // 不模糊选中的项
+                                else if (showContextMenu) 
+                                    Modifier.blur(radius = 4.dp) // 模糊其他项
+                                else 
+                                    Modifier
+                            )
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = conversation.title,
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
-                                }
-                            },
-                            colors = ListItemDefaults.colors(
-                                containerColor = Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    println("DEBUG: Selected conversation in SideDrawer - Title: ${conversation.title}, ID: ${conversation.id}")
-                                    onChatPageSelected(conversation.id)
-                                }
-                                .padding(horizontal = 8.dp)
-                        )
+                                },
+                                leadingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp)) // 圆形彩色背景图标
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .combinedClickable(
+                                        onClick = {
+                                            println("DEBUG: Selected conversation in SideDrawer - Title: ${conversation.title}, ID: ${conversation.id}")
+                                            onChatPageSelected(conversation.id)
+                                        },
+                                        onLongClick = {
+                                            println("DEBUG: Long clicked conversation - Title: ${conversation.title}, ID: ${conversation.id}")
+                                            // 获取当前项的位置信息
+                                            conversationPositions[conversation.id]?.let { (position, size) ->
+                                                // 计算菜单位置：在当前项正下方，但稍微向上偏移一点
+                                                val x = position.x.toInt()
+                                                val y = (position.y + size.height - 155).toInt() // 向上偏移大约一项的高度 (简化处理)
+                                                contextMenuOffset = IntOffset(x, y)
+                                            }
+                                            selectedConversation = conversation
+                                            showContextMenu = true
+                                            println("DEBUG: showContextMenu set to $showContextMenu")
+                                        },
+                                        indication = null, // 移除长按波纹效果
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                    )
+                                    .padding(horizontal = 8.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 8.dp)
+                                    .onGloballyPositioned { coordinates ->
+                                        // 存储当前项的位置信息，包括相对于屏幕的位置
+                                        val positionInRoot = coordinates.boundsInRoot().topLeft
+                                        val size = coordinates.size.toSize()
+                                        conversationPositions[conversation.id] = positionInRoot to size
+                                    }
+                            )
+                        }
                     }
                 }
 
@@ -396,6 +451,304 @@ fun SideDrawer(
                     }
                 }
 
+                // 对话操作上下文菜单 - 放在Box的最后一层，确保在最上层显示
+                val context = LocalContext.current
+                println("DEBUG: showContextMenu=$showContextMenu, selectedConversation=${selectedConversation?.title}")
+                if (showContextMenu && selectedConversation != null) {
+                    val conversation = selectedConversation!!
+                    println("DEBUG: Showing context menu for conversation ${conversation.title}")
+                    ContextMenu(
+                        conversation = conversation,
+                        offset = contextMenuOffset,
+                        onDismiss = {
+                            println("DEBUG: Dismissing context menu")
+                            showContextMenu = false
+                            selectedConversation = null
+                        },
+                        onPin = {
+                            // 置顶功能待实现
+                            println("DEBUG: Pin conversation")
+                            showContextMenu = false
+                            selectedConversation = null
+                        },
+                        onEdit = {
+                            newTitle = conversation.title
+                            showEditDialog = true
+                            println("DEBUG: Edit conversation, showEditDialog=$showEditDialog")
+                            showContextMenu = false
+                        },
+                        onShare = {
+                            // 分享功能待实现
+                            println("DEBUG: Share conversation")
+                            showContextMenu = false
+                            selectedConversation = null
+                        },
+                        onDelete = {
+                            scope.launch {
+                                try {
+                                    repository.deleteConversation(conversation.id)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "对话已删除", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                            showContextMenu = false
+                            selectedConversation = null
+                        }
+                    )
+                }
+
+                // 编辑对话标题对话框
+                if (showEditDialog && selectedConversation != null) {
+                    val conversation = selectedConversation!!
+                    EditTitleDialog(
+                        conversation = conversation,
+                        currentTitle = newTitle,
+                        onTitleChange = { newTitle = it },
+                        onDismiss = {
+                            showEditDialog = false
+                            selectedConversation = null
+                        },
+                        onSave = { title ->
+                            scope.launch {
+                                try {
+                                    repository.updateConversationTitle(conversation.id, title)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "对话名称已更新", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "更新失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                            showEditDialog = false
+                            selectedConversation = null
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContextMenu(
+    conversation: Conversation,
+    offset: IntOffset,
+    onDismiss: () -> Unit,
+    onPin: () -> Unit,
+    onEdit: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit
+) {
+    // 获取屏幕尺寸
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) {
+                // 点击空白处关闭菜单
+                onDismiss()
+            }
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(250.dp)
+                .align(Alignment.TopStart)
+                .offset {
+                    // 确保菜单不会超出屏幕右边界
+                    val x = offset.x.coerceAtMost(
+                        (screenWidth - 250.dp).roundToPx()
+                            .coerceAtLeast(0)
+                    )
+                    // 确保菜单不会超出屏幕下边界
+                    val y = offset.y.coerceAtMost(
+                        (screenHeight - 150.dp).roundToPx()
+                            .coerceAtLeast(0)
+                    )
+                    IntOffset(x, y)
+                },
+            tonalElevation = 8.dp,
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(250.dp)
+                    .padding(8.dp)
+            ) {
+                ContextMenuItem(
+                    icon = Icons.Default.PushPin,
+                    text = "置顶",
+                    onClick = {
+                        onPin()
+                    }
+                )
+                
+                ContextMenuItem(
+                    icon = Icons.Default.Edit,
+                    text = "编辑对话名称",
+                    onClick = {
+                        onEdit()
+                    }
+                )
+                
+                ContextMenuItem(
+                    icon = Icons.Default.Share,
+                    text = "分享对话",
+                    onClick = {
+                        onShare()
+                    }
+                )
+                
+                ContextMenuItem(
+                    icon = Icons.Default.Delete,
+                    text = "删除对话",
+                    textColor = MaterialTheme.colorScheme.error,
+                    onClick = {
+                        onDelete()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ContextMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    onClick: () -> Unit,
+    textColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = text,
+                color = textColor,
+                style = MaterialTheme.typography.bodyLarge // 使用与历史记录相同的字体大小
+            )
+        },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier
+                    .size(24.dp) // 使用与历史记录相同的图标大小
+                    .offset(x = (-8).dp) // 将图标向左移动1dp
+            )
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent
+        ),
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp)) // 使用与历史记录项相同的圆角
+            .clickable(
+                indication = null, // 移除点击波纹效果
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { 
+                onClick() 
+            }
+            .padding(horizontal = 8.dp) // 添加与历史记录项相同的内边距
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTitleDialog(
+    conversation: Conversation,
+    currentTitle: String,
+    onTitleChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    val focusManager = LocalFocusManager.current
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "编辑对话名称",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = currentTitle,
+                    onValueChange = onTitleChange,
+                    label = { Text("对话名称") },
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                        }
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (currentTitle.isNotBlank()) {
+                        onSave(currentTitle)
+                    }
+                },
+                enabled = currentTitle.isNotBlank()
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+private fun deleteConversation(conversationId: String, repository: Repository, context: Context) {
+    kotlinx.coroutines.GlobalScope.launch {
+        try {
+            repository.deleteConversation(conversationId)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "对话已删除", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+}
+
+private fun updateConversationTitle(conversationId: String, title: String, repository: Repository, context: Context) {
+    kotlinx.coroutines.GlobalScope.launch {
+        try {
+            repository.updateConversationTitle(conversationId, title)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "对话名称已更新", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "更新失败: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }

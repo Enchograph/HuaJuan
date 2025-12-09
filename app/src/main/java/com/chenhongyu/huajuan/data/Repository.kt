@@ -333,6 +333,23 @@ class Repository(private val context: Context) {
         }
     }
     
+    /**
+     * 更新对话标题
+     */
+    suspend fun updateConversationTitle(conversationId: String, title: String) {
+        // 在IO线程中执行数据库操作
+        withContext(Dispatchers.IO) {
+            val conversation = conversationDao.getConversationById(conversationId)
+            if (conversation != null) {
+                val updatedConversation = conversation.copy(
+                    title = title,
+                    timestamp = java.util.Date()
+                )
+                conversationDao.updateConversation(updatedConversation)
+            }
+        }
+    }
+    
     // 创建OkHttpClient实例
     private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
