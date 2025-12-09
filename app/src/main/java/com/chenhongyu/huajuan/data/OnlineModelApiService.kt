@@ -1,5 +1,6 @@
 package com.chenhongyu.huajuan.data
 
+import android.util.Log
 import com.chenhongyu.huajuan.network.Message
 import com.chenhongyu.huajuan.network.OpenAiApiService
 import com.chenhongyu.huajuan.network.OpenAiRequest
@@ -13,9 +14,13 @@ import java.util.concurrent.TimeUnit
  * 在线模型API服务实现
  */
 class OnlineModelApiService(private val repository: Repository) : ModelApiService {
+    companion object {
+        private const val TAG = "OnlineModelApiService"
+    }
     
     override fun isAvailable(): Boolean {
         // 在线模型始终可用（只要有网络）
+        Log.d(TAG, "Online model service is always considered available")
         return true
     }
     
@@ -53,6 +58,7 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
                 return "错误：HTTP ${response.code()} - ${response.message()}"
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Error getting AI response from online model", e)
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }
     }

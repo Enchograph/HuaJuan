@@ -10,6 +10,7 @@ android {
     compileSdk {
         version = release(36)
     }
+    ndkVersion = "29.0.14033849"
 
     defaultConfig {
         applicationId = "com.chenhongyu.huajuan"
@@ -19,6 +20,18 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // 添加C++原生库配置
+        externalNativeBuild {
+            cmake {
+                cppFlags ("-std=c++17")
+            }
+        }
+        
+        ndk {
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -30,6 +43,15 @@ android {
             )
         }
     }
+    
+    // 添加外部原生构建配置
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

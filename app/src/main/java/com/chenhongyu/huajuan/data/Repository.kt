@@ -316,6 +316,13 @@ class Repository(private val context: Context) {
         }
     }
     
+    /**
+     * 获取上下文
+     */
+    fun getContext(): Context {
+        return context
+    }
+    
     // 创建OkHttpClient实例
     private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
