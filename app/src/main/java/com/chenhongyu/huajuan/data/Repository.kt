@@ -22,6 +22,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
+import kotlinx.coroutines.*
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -578,5 +579,136 @@ class Repository(private val context: Context) {
         }
 
         return modelApiService.streamAIResponse(networkMessages, modelInfo)
+    }
+
+    suspend fun createAICreationFromMessage(
+        title: String,
+        username: String?,
+        userSignature: String?,
+        aiRoleName: String?,
+        aiModelName: String?,
+        promptHtml: String,
+        promptJson: String?,
+        width: Int = 1024,
+        height: Int = 1024
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val id = java.util.UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            val entity = AICreationEntity(
+                id = id,
+                username = username,
+                userSignature = userSignature,
+                aiRoleName = aiRoleName,
+                aiModelName = aiModelName,
+                promptHtml = promptHtml,
+                promptJson = promptJson,
+                imageFileName = null,
+                width = width,
+                height = height,
+                status = "PENDING",
+                createdAt = now,
+                updatedAt = now,
+                extraJson = null
+            )
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            dao.insertCreation(entity)
+            id
+        }
+    }
+
+    /**
+     * Trigger generation synchronously (suspend). This uses GenerationManager internally.
+     */
+    suspend fun generateAICreationNow(id: String): Boolean {
+        return try {
+            com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Enqueue background generation job for an AI creation.
+     * Current implementation launches a background coroutine that calls GenerationManager directly.
+     * This avoids WorkManager usage in environments where WorkManager symbols may not be resolvable.
+     */
+    fun enqueueAICreationGeneration(id: String) {
+        try {
+            // Prefer WorkManager in production; below is a direct coroutine fallback for this repo environment.
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            /*
+            // WorkManager implementation (kept for reference):
+            val workManager = androidx.work.WorkManager.getInstance(context.applicationContext)
+            val data = androidx.work.Data.Builder().putString("ai_creation_id", id).build()
+            val request = androidx.work.OneTimeWorkRequestBuilder<com.chenhongyu.huajuan.workers.GenerationWorkerImpl>()
+                .setInputData(data)
+                .build()
+            workManager.enqueue(request)
+            */
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            // delete image files if present
+            val entity = dao.getCreationById(id)
+            try {
+                entity?.imageFileName?.let { path ->
+                    try { File(path).delete() } catch (_: Exception) {}
+                    // delete thumb
+                    entity.extraJson?.let { extra ->
+                        // naive parse to find "thumb":"path"
+                        val thumbKey = "\"thumb\":"
+                        val idx = extra.indexOf(thumbKey)
+                        if (idx >= 0) {
+                            val sub = extra.substring(idx + thumbKey.length).trimStart()
+                            val end = sub.indexOf('"', 1)
+                            if (end > 0) {
+                                val thumbPath = sub.substring(1, end)
+                                try { File(thumbPath).delete() } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            dao.deleteCreationById(id)
+        }
+    }
+
+    fun getAICreationsFlow(): Flow<List<AICreationEntity>> {
+        return AppDatabase.getDatabase(context).aiCreationDao().getAllCreations()
+    }
+
+    fun getAICreations(): List<AICreation> {
+        return runBlocking {
+            AppDatabase.getDatabase(context).aiCreationDao().getAllCreations().first().map { entity ->
+                AICreation(
+                    id = entity.id,
+                    title = entity.title ?: "",
+                    description = entity.promptJson ?: "",
+                    imageUrl = entity.imageFileName ?: "",
+                    width = entity.width,
+                    height = entity.height,
+                    status = entity.status ?: "",
+                    createdAt = entity.createdAt,
+                    updatedAt = entity.updatedAt
+                )
+            }
+        }
     }
 }

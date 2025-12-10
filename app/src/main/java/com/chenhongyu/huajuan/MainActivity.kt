@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -40,11 +41,14 @@ import com.chenhongyu.huajuan.SettingScreen
 import com.chenhongyu.huajuan.SideDrawer
 import com.chenhongyu.huajuan.AICreationScreen
 import com.chenhongyu.huajuan.AgentScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -85,7 +89,8 @@ fun MainApp(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    
+    val context = LocalContext.current
+
     // 获取屏幕宽度
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -139,6 +144,27 @@ fun MainApp(
         }
     }
     
+    // On startup, enqueue generation for any pending or failed AI creations so background generation will run
+    LaunchedEffect(Unit) {
+        try {
+            withContext(Dispatchers.IO) {
+                val dao = com.chenhongyu.huajuan.data.AppDatabase.getDatabase(context).aiCreationDao()
+                val list = dao.getAllCreations().first()
+                list.filter { item -> item.status != "DONE" && item.status != "GENERATING" }
+                    .forEach { entity ->
+                        try {
+                            repository.enqueueAICreationGeneration(entity.id)
+                            println("DEBUG: Enqueued pending generation for ai_creation id=${entity.id}")
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

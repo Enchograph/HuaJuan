@@ -4,7 +4,6 @@ package com.chenhongyu.huajuan
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -26,7 +24,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -100,6 +97,8 @@ fun ChatScreen(
 ) {
     println("DEBUG: ChatScreen recomposed with currentConversationId: ${appState.currentConversationId}")
     val scope = rememberCoroutineScope()
+    // Editor state: when non-null, show the AI creation editor for that message
+    var editorMessage by remember { mutableStateOf<com.chenhongyu.huajuan.data.Message?>(null) }
     var isExpanded by remember { mutableStateOf(false) }
     // 移除对appState.currentConversationId的依赖，避免重组时的过渡动画
     var chatState by remember { 
@@ -422,6 +421,7 @@ fun ChatScreen(
              repository = repository,
              systemPrompt = systemPrompt,
              listState = listState,
+             conversationId = appState.currentConversationId,
              modifier = Modifier
                  .padding(paddingValues)
                  .fillMaxSize()
@@ -505,6 +505,23 @@ fun ChatScreen(
             }
         )
     }
+
+    // AI 创作编辑器覆盖页（当用户点击收藏并要发布时）
+    if (editorMessage != null) {
+        val msg = editorMessage!!
+        AICreationEditor(
+            message = msg,
+            repository = repository,
+            conversationId = appState.currentConversationId ?: "default",
+            onDismiss = { editorMessage = null },
+            onPublished = { id ->
+                editorMessage = null
+                scope.launch {
+                    Toast.makeText(LocalContext.current, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
 }
 
 /**
@@ -516,6 +533,7 @@ fun ChatContentArea(
     repository: Repository,
     systemPrompt: String,
     listState: LazyListState,
+    conversationId: String?,
     modifier: Modifier = Modifier
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
@@ -682,39 +700,43 @@ fun ChatContentArea(
                             onClick = { 
                                 isFavorited = !isFavorited
                                 if (isFavorited) {
-                                    Toast.makeText(context, "已收藏该回复", Toast.LENGTH_SHORT).show()
+                                    // open editor dialog to let user edit title/content and pick template
+                                    editorMessage = message
                                 } else {
                                     Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
                                 }
-                                println("${if (isFavorited) "已收藏" else "取消收藏"}消息")
+                                println("${if (isFavorited) "触发创建编辑" else "取消收藏"}消息")
                             },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(
-                                    if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant 
-                                    else MaterialTheme.colorScheme.surface,
-                                    CircleShape
-                                )
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
-                                contentDescription = "收藏",
-                                tint = if (isFavorited) MaterialTheme.colorScheme.primary 
-                                      else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = formatTime(message.timestamp),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .padding(end = 60.dp)
-                    )
-                }
-            } else {
+                             modifier = Modifier
+                                 .size(36.dp)
+                                 .background(
+                                     if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                                     else MaterialTheme.colorScheme.surface,
+                                     CircleShape
+                                 )
+                         ) {
+                             Icon(
+                                 imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
+                                 contentDescription = "收藏",
+                                 tint = if (isFavorited) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                             )
+                         }
+                     }
+
+                     Text(
+                         text = formatTime(message.timestamp),
+                         fontSize = 12.sp,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                         modifier = Modifier
+                             .padding(top = 8.dp)
+                             .padding(end = 60.dp)
+                     )
+                 }
+
+                // Render global editor overlay if set (we use a remember in outer scope to manage showing the editor)
+                // We'll declare separate state outside the items loop to avoid re-creating; check below for implementation.
+             } else {
                 // 用户发送气泡
                 Column(
                     modifier = Modifier.fillMaxWidth(),
