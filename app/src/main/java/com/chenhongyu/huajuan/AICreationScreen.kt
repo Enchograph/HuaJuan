@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.chenhongyu.huajuan.data.AppDatabase
 import com.chenhongyu.huajuan.data.AICreationEntity
 import com.chenhongyu.huajuan.data.ImageStorage
@@ -98,8 +101,8 @@ fun AICreationScreen(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(8.dp),
-                    contentPadding = PaddingValues(4.dp)
+                        .padding(4.dp), // reduce outer padding for denser modern look
+                    contentPadding = PaddingValues(2.dp) // smaller gaps between items
                 ) {
                     items(items) { item ->
                         AICreationCard(item = item, onClick = { selected = item })
@@ -120,10 +123,11 @@ fun AICreationScreen(
 fun AICreationCard(item: AICreationEntity, onClick: () -> Unit) {
     Card(
         modifier = Modifier
-            .padding(6.dp)
+            .padding(4.dp) // smaller card padding
             .fillMaxWidth()
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(4.dp)
+        elevation = CardDefaults.cardElevation(6.dp),
+        shape = RoundedCornerShape(8.dp) // smaller rounded corners
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             var bmp by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -142,24 +146,38 @@ fun AICreationCard(item: AICreationEntity, onClick: () -> Unit) {
             }
 
             val localBmpCard = bmp
-            if (localBmpCard != null) {
-                Image(bitmap = localBmpCard.asImageBitmap(), contentDescription = item.aiRoleName ?: "AI 创建", modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp))
-            } else {
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    Text(item.aiRoleName ?: "默认", fontWeight = FontWeight.Bold)
+
+            // Image area (高度为原来的两倍)，不再在图片上叠加信息
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp)) {
+                if (localBmpCard != null) {
+                    Image(
+                        bitmap = localBmpCard.asImageBitmap(),
+                        contentDescription = item.aiRoleName ?: "AI 创建",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                        Text(item.aiRoleName ?: "默认", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
                 }
             }
 
-            Column(modifier = Modifier.padding(8.dp)) {
+            // 信息栏：单行，左侧用户名，右侧生成日期
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(text = item.username ?: "匿名", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = formatTimeAgo(item.createdAt), style = MaterialTheme.typography.bodySmall)
+                Text(text = formatTime(java.util.Date(item.createdAt)), style = MaterialTheme.typography.bodySmall)
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -209,7 +227,7 @@ fun AICreationEditor(
             ) { padding ->
                 Column(modifier = Modifier
                     .padding(padding)
-                    .padding(16.dp)
+                    .padding(12.dp) // slightly reduced padding
                     .fillMaxSize(), verticalArrangement = Arrangement.Top) {
 
                     // header info: username, ai role, times
@@ -271,7 +289,9 @@ fun AICreationEditor(
                         .height(220.dp)
                         .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                         if (previewBmp != null) {
-                            Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = "封面预览", modifier = Modifier.fillMaxSize())
+                            Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = "封面预览", modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
                         } else {
                             Text(if (isGenerating) "正在生成封面..." else "尚未生成封面（封面将作为帖子封面）")
                         }
@@ -304,8 +324,8 @@ fun AICreationEditor(
                                                 val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
                                                 val dataMap = mapOf(
                                                     "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
-                                                    "userName" to (userInfo.username ?: ""),
-                                                    "userSig" to (userInfo.signature ?: ""),
+                                                    "userName" to userInfo.username,
+                                                    "userSig" to userInfo.signature,
                                                     "aiName" to repository.getConversationRoleName(conversationId),
                                                     "aiModel" to repository.getSelectedModel(),
                                                     "aiPrompt" to commentary,
@@ -313,7 +333,7 @@ fun AICreationEditor(
                                                     "aiContent" to ""
                                                 )
                                                 HtmlTemplateFiller.fillTemplate(tpl, dataMap)
-                                            } catch (e: Exception) {
+                                            } catch (_: Exception) {
                                                 // fallback to simple card HTML
                                                 "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
                                             }
@@ -395,8 +415,8 @@ fun AICreationEditor(
                                                     val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
                                                     val dataMap = mapOf(
                                                         "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
-                                                        "userName" to (userInfo.username ?: ""),
-                                                        "userSig" to (userInfo.signature ?: ""),
+                                                        "userName" to userInfo.username,
+                                                        "userSig" to userInfo.signature,
                                                         "aiName" to repository.getConversationRoleName(conversationId),
                                                         "aiModel" to repository.getSelectedModel(),
                                                         "aiPrompt" to commentary,
@@ -404,7 +424,7 @@ fun AICreationEditor(
                                                         "aiContent" to ""
                                                     )
                                                     HtmlTemplateFiller.fillTemplate(tpl, dataMap)
-                                                } catch (e: Exception) {
+                                                } catch (_: Exception) {
                                                     // fallback to simple card HTML
                                                     "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
                                                 }
@@ -508,45 +528,51 @@ fun AICreationDetail(
                 Column(modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scroll)
-                    .padding(16.dp)) {
+                    .padding(12.dp)) {
 
-                    // Cover image
-                    val bmp = item.imageFileName?.let { ImageStorage.loadBitmap(it) }
-                    if (bmp != null) {
-                        Image(bitmap = bmp.asImageBitmap(), contentDescription = "题图", modifier = Modifier
-                            .fillMaxWidth()
-                            .height(420.dp))
-                    } else {
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(420.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            Text("尚未生成题图")
+                    // Cover image (高度为原来的两倍)，不再在图片上叠加信息
+                    Box(modifier = Modifier
+                        .fillMaxWidth()
+                        .height(720.dp)) {
+                        val bmp = item.imageFileName?.let { ImageStorage.loadBitmap(it) }
+                        if (bmp != null) {
+                            Image(bitmap = bmp.asImageBitmap(), contentDescription = "题图", modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                        } else {
+                            Box(modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                Text("尚未生成题图")
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(text = item.title ?: "无标题", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    // 标题（图片下方独立显示）
                     Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = item.title ?: "无标题", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(text = "作者: ${item.username ?: "匿名"}", style = MaterialTheme.typography.bodyMedium)
-                        Text(text = "AI 角色: ${item.aiRoleName ?: "-"}", style = MaterialTheme.typography.bodySmall)
+                    // 单行信息栏：左用户名，右生成日期
+                    Row(modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = item.username ?: "匿名", style = MaterialTheme.typography.bodyMedium)
+                        Text(text = item.createdAt.let { formatTime(java.util.Date(it)) }, style = MaterialTheme.typography.bodySmall)
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
+                    // 对话信息：时间、发布
                     Text(text = "对话时间: ${item.conversationAt?.let { formatTime(java.util.Date(it)) } ?: "-"}")
                     Text(text = "发布时间: ${item.publishedAt?.let { formatTime(java.util.Date(it)) } ?: formatTime(java.util.Date(item.createdAt))}")
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     if (!item.commentary.isNullOrEmpty()) {
                         Text(text = "帖子正文", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = item.commentary!!, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = item.commentary, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
                     val convText = item.conversationText
@@ -607,7 +633,7 @@ fun AICreationDetail(
                         }) { Text("删除") }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
