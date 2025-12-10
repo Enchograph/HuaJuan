@@ -322,13 +322,13 @@ fun SideDrawer(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(MaterialTheme.colorScheme.tertiaryContainer),
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ViewModule,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }

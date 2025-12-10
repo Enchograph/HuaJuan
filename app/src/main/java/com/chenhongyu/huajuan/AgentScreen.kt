@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,9 +52,10 @@ fun AgentScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
+                // use menu icon like other pages so header logic is consistent
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
+                    IconButton(onClick = onMenuClick) {
+                        Icon(Icons.Default.Menu, contentDescription = "打开侧边栏")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -219,34 +221,18 @@ fun AgentCard(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = agent.systemPrompt,  // 显示系统提示词预览
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+                // 系统提示词不再在卡片中显示（保持界面简洁）
+                // Spacer(modifier = Modifier.height(4.dp))
+                // Text(
+                //     text = agent.systemPrompt,  // 显示系统提示词预览
+                //     style = MaterialTheme.typography.bodySmall,
+                //     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                //     maxLines = 1,
+                //     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                // )
             }
-            
-            // 新建对话按钮 — 更直观的交互：用Add图标并加一个Chevron指示导航
-            IconButton(
-                onClick = onClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "新建对话",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+
+            // Removed the Add IconButton per request
 
             Spacer(modifier = Modifier.width(8.dp))
 

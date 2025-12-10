@@ -72,11 +72,7 @@ fun AICreationScreen(
                         Icon(Icons.Outlined.Menu, contentDescription = "打开侧边栏")
                     }
                 },
-                actions = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+                // removed the right-side back action per design request
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -126,7 +122,8 @@ fun AICreationCard(item: AICreationEntity, onClick: () -> Unit) {
             .padding(4.dp) // smaller card padding
             .fillMaxWidth()
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(6.dp),
+        // remove elevation to eliminate shadows
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(8.dp) // smaller rounded corners
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -173,8 +170,8 @@ fun AICreationCard(item: AICreationEntity, onClick: () -> Unit) {
             Row(modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = item.username ?: "匿名", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(text = formatTime(java.util.Date(item.createdAt)), style = MaterialTheme.typography.bodySmall)
+                Text(text = item.username ?: "匿名", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = formatTime(java.util.Date(item.createdAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -378,7 +375,7 @@ fun AICreationEditor(
                                         }
                                     } else {
                                         withContext(Dispatchers.Main) {
-                                            Toast.makeText(context, "生成失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "已生成失败，请稍后重试", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 } catch (e: Exception) {

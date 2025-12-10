@@ -731,4 +731,85 @@ class Repository(private val context: Context) {
             }
         }
     }
+
+    // 新增：清除数据库中除API和密钥相关以外的所有用户数据（须在debug或受保护路径调用）
+    suspend fun clearUserDataExceptApiKeys() {
+        withContext(Dispatchers.IO) {
+            try {
+                // Delete all messages
+                try {
+                    // messages table: no deleteAll query, use conversation loop to delete by conversation
+                    val convs = conversationDao.getAllConversations().first()
+                    convs.forEach { conv ->
+                        try { messageDao.deleteMessagesByConversationId(conv.id) } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Delete all conversations
+                try {
+                    val convs2 = conversationDao.getAllConversations().first()
+                    convs2.forEach { conv -> conversationDao.deleteConversationById(conv.id) }
+                } catch (_: Exception) {}
+
+                // Delete all AI creations and remove their image files
+                try {
+                    val aiDao = database.aiCreationDao()
+                    val creations = aiDao.getAllCreations().first()
+                    creations.forEach { c ->
+                        // delete image files if present
+                        try { c.imageFileName?.let { java.io.File(it).delete() } } catch (_: Exception) {}
+                        // also delete thumbnail if present
+                        try {
+                            c.imageFileName?.let {
+                                val thumb = java.io.File(it).parentFile?.let { p ->
+                                    java.io.File(p, "thumb_${java.io.File(it).nameWithoutExtension}.webp")
+                                }
+                                thumb?.delete()
+                            }
+                        } catch (_: Exception) {}
+                        
+                        try {
+                            val aiDao = database.aiCreationDao()
+                            aiDao.deleteCreationById(c.id)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Optionally remove other non-API prefs (keep api_key_*, service_provider and selected_model_* etc.)
+                try {
+                    val keysToKeepPrefixes = listOf("api_key_", "service_provider", "selected_model_", "custom_service_providers", "custom_provider_url_")
+                    val allKeys = prefs.all.keys
+                    val editor = prefs.edit()
+                    allKeys.forEach { k ->
+                        val keep = keysToKeepPrefixes.any { pref -> k.startsWith(pref) } || k == DARK_MODE_KEY || k == DEBUG_MODE_KEY || k == "user_name" || k == "user_signature" || k == "user_avatar"
+                        if (!keep) {
+                            editor.remove(k)
+                        }
+                    }
+                    editor.apply()
+                } catch (_: Exception) {}
+
+                // Clear image storage directory used by ImageStorage
+                try {
+                    // we can attempt to delete external files dir subfolder used earlier
+                    val dir = java.io.File(context.getExternalFilesDir(null), "ai_creations")
+                    if (dir.exists() && dir.isDirectory) {
+                        dir.listFiles()?.forEach { f ->
+                            try {
+                                if (f.isDirectory) {
+                                    f.listFiles()?.forEach { it.delete() }
+                                }
+                                f.delete()
+                            } catch (_: Exception) {}
+                        }
+                    }
+                } catch (_: Exception) {}
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                throw e
+            }
+        }
+    }
+
 }

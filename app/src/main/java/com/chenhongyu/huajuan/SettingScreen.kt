@@ -311,7 +311,8 @@ fun SettingScreen(
                         
                         if (debugMode) {
                             Spacer(Modifier.height(16.dp))
-                            
+                            var showClearConfirm by remember { mutableStateOf(false) }
+
                             // 清空对话数据库按钮
                             Button(
                                 onClick = {
@@ -340,7 +341,46 @@ fun SettingScreen(
                             ) {
                                 Text("清空对话数据库")
                             }
-                            
+
+                            // 新增：删除数据库但保留API/密钥
+                            Button(
+                                onClick = { showClearConfirm = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("删除数据库（保留 API 与密钥）")
+                            }
+
+                            if (showClearConfirm) {
+                                AlertDialog(
+                                    onDismissRequest = { showClearConfirm = false },
+                                    title = { Text("确认删除数据库") },
+                                    text = { Text("该操作会删除除 API/密钥 之外的所有本地数据，无法恢复。确定继续吗？") },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            showClearConfirm = false
+                                            scope.launch {
+                                                try {
+                                                    repository.clearUserDataExceptApiKeys()
+                                                    Toast.makeText(context, "已删除本地数据（保留 API & 密钥）", Toast.LENGTH_SHORT).show()
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }) { Text("确认") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+                                    }
+                                )
+                            }
+
                             // 一键新建一百条对话按钮
                             Button(
                                 onClick = {
@@ -464,57 +504,100 @@ fun SettingScreen(
                                     repository = repository
                                 )
                                 
-                                var passwordVisibility by remember { mutableStateOf(false) }
-                                
-                                OutlinedTextField(
-                                    value = apiKey,
-                                    onValueChange = { 
-                                        apiKey = it
-                                        repository.setApiKeyForProvider(serviceProvider, it)
-                                    },
-                                    label = { Text("API密钥") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    visualTransformation = if (passwordVisibility) {
-                                        androidx.compose.ui.text.input.VisualTransformation.None
-                                    } else {
-                                        androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                    },
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                                    ),
-                                    trailingIcon = {
-                                        val image = if (passwordVisibility) {
-                                            Icons.Filled.Visibility
-                                        } else {
-                                            Icons.Filled.VisibilityOff
-                                        }
-                                        
-                                        IconButton(onClick = {
-                                            passwordVisibility = !passwordVisibility
-                                        }) {
-                                            Icon(
-                                                imageVector = image,
-                                                contentDescription = if (passwordVisibility) {
-                                                    "隐藏密码"
-                                                } else {
-                                                    "显示密码"
-                                                }
-                                            )
-                                        }
+                                // Debug-only quick switch to 硅基流动, set hard-coded key invisibly (not shown in UI)
+                                if (debugMode) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val hardCodedKey = "sk_test_silicon_hardcoded_key_123456"
+                                            repository.setServiceProvider("硅基流动")
+                                            repository.setApiKeyForProvider("硅基流动", hardCodedKey)
+                                            serviceProvider = "硅基流动"
+                                            apiKey = repository.getApiKeyForProvider("硅基流动")
+
+                                            // Set default model if available
+                                            val modelDataProvider = ModelDataProvider(repository)
+                                            val models = modelDataProvider.getModelListForProvider("硅基流动")
+                                            if (models.isNotEmpty()) {
+                                                val firstModel = models.first().displayName
+                                                selectedModel = firstModel
+                                                repository.setSelectedModelForProvider("硅基流动", firstModel)
+                                            }
+
+                                            Toast.makeText(context, "已切换到 硅基流动（密钥已隐式设置）", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Text("切换到 硅基流动 (测试)")
                                     }
-                                )
-                                
+                                }
+
+                                var passwordVisibility by remember { mutableStateOf(false) }
+
+                                // 如果当前服务提供商是 硅基流动，则不在前端展示密钥输入框（密钥由代码写死）
+                                if (serviceProvider != "硅基流动") {
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = {
+                                            apiKey = it
+                                            repository.setApiKeyForProvider(serviceProvider, it)
+                                        },
+                                        label = { Text("API密钥") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 16.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        visualTransformation = if (passwordVisibility) {
+                                            androidx.compose.ui.text.input.VisualTransformation.None
+                                        } else {
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                        ),
+                                        trailingIcon = {
+                                            val image = if (passwordVisibility) {
+                                                Icons.Filled.Visibility
+                                            } else {
+                                                Icons.Filled.VisibilityOff
+                                            }
+
+                                            IconButton(onClick = {
+                                                passwordVisibility = !passwordVisibility
+                                            }) {
+                                                Icon(
+                                                    imageVector = image,
+                                                    contentDescription = if (passwordVisibility) {
+                                                        "隐藏密码"
+                                                    } else {
+                                                        "显示密码"
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    Text(
+                                        text = "使用内置的硅基流动密钥（不会在界面展示）",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 16.dp)
+                                    )
+                                }
+
                                 ModelSelector(
                                     serviceProvider = serviceProvider,
                                     selectedModel = selectedModel,
