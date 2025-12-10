@@ -27,6 +27,7 @@ import com.chenhongyu.huajuan.data.AppDatabase
 import com.chenhongyu.huajuan.data.AICreationEntity
 import com.chenhongyu.huajuan.data.ImageStorage
 import com.chenhongyu.huajuan.data.Repository
+import com.chenhongyu.huajuan.render.HtmlTemplateFiller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -182,7 +183,7 @@ fun AICreationEditor(
     var commentary by remember { mutableStateOf("") }
     var content by remember { mutableStateOf(message.text) }
     var selectedTemplate by remember { mutableStateOf("classic") }
-    val templates = listOf("classic", "poem", "card")
+    val templates = listOf("classic", "poem", "card", "dialog")
     var includeConversation by remember { mutableStateOf(true) }
     var publishedAt by remember { mutableStateOf(conversationAt ?: System.currentTimeMillis()) }
 
@@ -297,6 +298,26 @@ fun AICreationEditor(
                                     val promptHtml = when (selectedTemplate) {
                                         "poem" -> "<div style=\"font-family: serif; padding:24px; text-align:center;\"><h2>${title}</h2><p>${commentary.replace("\n", "<br/>")}</p><footer style=\"margin-top:16px;opacity:0.7;\">— ${userInfo.username}</footer></div>"
                                         "card" -> "<div style=\"font-family: sans-serif; padding:20px; border:1px solid #eee; border-radius:12px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                        "dialog" -> {
+                                            // load template from assets and fill with data
+                                            try {
+                                                val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
+                                                val dataMap = mapOf(
+                                                    "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
+                                                    "userName" to (userInfo.username ?: ""),
+                                                    "userSig" to (userInfo.signature ?: ""),
+                                                    "aiName" to repository.getConversationRoleName(conversationId),
+                                                    "aiModel" to repository.getSelectedModel(),
+                                                    "aiPrompt" to commentary,
+                                                    "userContent" to (convText ?: content),
+                                                    "aiContent" to ""
+                                                )
+                                                HtmlTemplateFiller.fillTemplate(tpl, dataMap)
+                                            } catch (e: Exception) {
+                                                // fallback to simple card HTML
+                                                "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                            }
+                                        }
                                         else -> "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
                                     }
 
@@ -368,6 +389,26 @@ fun AICreationEditor(
                                         val promptHtml = when (selectedTemplate) {
                                             "poem" -> "<div style=\"font-family: serif; padding:24px; text-align:center;\"><h2>${title}</h2><p>${commentary.replace("\n", "<br/>")}</p><footer style=\"margin-top:16px;opacity:0.7;\">— ${userInfo.username}</footer></div>"
                                             "card" -> "<div style=\"font-family: sans-serif; padding:20px; border:1px solid #eee; border-radius:12px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                            "dialog" -> {
+                                                // load template from assets and fill with data
+                                                try {
+                                                    val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
+                                                    val dataMap = mapOf(
+                                                        "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
+                                                        "userName" to (userInfo.username ?: ""),
+                                                        "userSig" to (userInfo.signature ?: ""),
+                                                        "aiName" to repository.getConversationRoleName(conversationId),
+                                                        "aiModel" to repository.getSelectedModel(),
+                                                        "aiPrompt" to commentary,
+                                                        "userContent" to (convText ?: content),
+                                                        "aiContent" to ""
+                                                    )
+                                                    HtmlTemplateFiller.fillTemplate(tpl, dataMap)
+                                                } catch (e: Exception) {
+                                                    // fallback to simple card HTML
+                                                    "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                                }
+                                            }
                                             else -> "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
                                         }
 
