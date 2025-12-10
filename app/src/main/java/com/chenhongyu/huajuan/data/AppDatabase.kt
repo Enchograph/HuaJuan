@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ConversationEntity::class, MessageEntity::class, AICreationEntity::class],
-    version = 4, // bump database version to include ai_creations
+    version = 5, // bumped database version to include new ai_creations columns
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -52,6 +52,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // migration from 4 to 5: add new nullable columns for richer posts
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // add columns; allow nulls for backward compatibility
+                database.execSQL("ALTER TABLE ai_creations ADD COLUMN title TEXT")
+                database.execSQL("ALTER TABLE ai_creations ADD COLUMN commentary TEXT")
+                database.execSQL("ALTER TABLE ai_creations ADD COLUMN conversationText TEXT")
+                database.execSQL("ALTER TABLE ai_creations ADD COLUMN conversationAt INTEGER")
+                database.execSQL("ALTER TABLE ai_creations ADD COLUMN publishedAt INTEGER")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -62,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "app_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4) // 添加迁移
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5) // 添加迁移
                 .fallbackToDestructiveMigration() // 允许破坏性迁移
                 .build()
                 INSTANCE = instance

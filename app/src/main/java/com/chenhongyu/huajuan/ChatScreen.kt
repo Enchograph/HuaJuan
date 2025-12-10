@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import java.util.Date
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,10 +46,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlinx.coroutines.delay
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
 import androidx.compose.ui.window.Dialog
 import com.chenhongyu.huajuan.data.Message
@@ -64,25 +62,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.derivedStateOf
 
-fun formatTime(date: Date): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    return sdf.format(date)
-}
-
-fun formatConversationTime(date: Date): String {
-    val now = Date()
-    val diff = now.time - date.time
-    val minutes = diff / 60000
-    val hours = diff / 3600000
-    val days = diff / 86400000
-    
-    return when {
-        days > 0 -> "${days}天前"
-        hours > 0 -> "${hours}小时前"
-        minutes > 0 -> "${minutes}分钟前"
-        else -> "刚刚"
-    }
-}
 
 /**
  * 聊天界面
@@ -424,7 +403,8 @@ fun ChatScreen(
              conversationId = appState.currentConversationId,
              modifier = Modifier
                  .padding(paddingValues)
-                 .fillMaxSize()
+                 .fillMaxSize(),
+             onOpenEditor = { msg -> editorMessage = msg }
          )
      }
 
@@ -517,9 +497,11 @@ fun ChatScreen(
             onPublished = { id ->
                 editorMessage = null
                 scope.launch {
-                    Toast.makeText(LocalContext.current, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
                 }
-            }
+            },
+            conversationMessages = chatState.messages,
+            conversationAt = chatState.messages.firstOrNull()?.timestamp?.time
         )
     }
 }
@@ -534,7 +516,8 @@ fun ChatContentArea(
     systemPrompt: String,
     listState: LazyListState,
     conversationId: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenEditor: ((Message) -> Unit)? = null
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
     val scope = rememberCoroutineScope()
@@ -700,8 +683,8 @@ fun ChatContentArea(
                             onClick = { 
                                 isFavorited = !isFavorited
                                 if (isFavorited) {
-                                    // open editor dialog to let user edit title/content and pick template
-                                    editorMessage = message
+                                    // request parent to open editor dialog
+                                    onOpenEditor?.invoke(message)
                                 } else {
                                     Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
                                 }

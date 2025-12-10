@@ -2,24 +2,16 @@ package com.chenhongyu.huajuan.data
 
 import android.content.Context
 import com.chenhongyu.huajuan.network.OpenAiApiService
-import com.chenhongyu.huajuan.network.OpenAiRequest
-import com.chenhongyu.huajuan.network.Message as NetworkMessage
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.io.IOException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
 import kotlinx.coroutines.*
@@ -589,6 +581,10 @@ class Repository(private val context: Context) {
         aiModelName: String?,
         promptHtml: String,
         promptJson: String?,
+        conversationText: String? = null,
+        conversationAt: Long? = null,
+        publishedAt: Long? = null,
+        commentary: String? = null,
         width: Int = 1024,
         height: Int = 1024
     ): String {
@@ -601,8 +597,13 @@ class Repository(private val context: Context) {
                 userSignature = userSignature,
                 aiRoleName = aiRoleName,
                 aiModelName = aiModelName,
+                title = title,
+                commentary = commentary,
                 promptHtml = promptHtml,
                 promptJson = promptJson,
+                conversationText = conversationText,
+                conversationAt = conversationAt,
+                publishedAt = publishedAt,
                 imageFileName = null,
                 width = width,
                 height = height,
@@ -666,7 +667,7 @@ class Repository(private val context: Context) {
             val entity = dao.getCreationById(id)
             try {
                 entity?.imageFileName?.let { path ->
-                    try { File(path).delete() } catch (_: Exception) {}
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
                     // delete thumb
                     entity.extraJson?.let { extra ->
                         // naive parse to find "thumb":"path"
@@ -677,7 +678,7 @@ class Repository(private val context: Context) {
                             val end = sub.indexOf('"', 1)
                             if (end > 0) {
                                 val thumbPath = sub.substring(1, end)
-                                try { File(thumbPath).delete() } catch (_: Exception) {}
+                                try { java.io.File(thumbPath).delete() } catch (_: Exception) {}
                             }
                         }
                     }
@@ -694,20 +695,39 @@ class Repository(private val context: Context) {
         return AppDatabase.getDatabase(context).aiCreationDao().getAllCreations()
     }
 
-    fun getAICreations(): List<AICreation> {
+    fun getAICreations(): List<AICreationEntity> {
         return runBlocking {
-            AppDatabase.getDatabase(context).aiCreationDao().getAllCreations().first().map { entity ->
-                AICreation(
-                    id = entity.id,
-                    title = entity.title ?: "",
-                    description = entity.promptJson ?: "",
-                    imageUrl = entity.imageFileName ?: "",
-                    width = entity.width,
-                    height = entity.height,
-                    status = entity.status ?: "",
-                    createdAt = entity.createdAt,
-                    updatedAt = entity.updatedAt
-                )
+            AppDatabase.getDatabase(context).aiCreationDao().getAllCreations().first()
+        }
+    }
+
+    /**
+     * Mark an AI creation as published/done. Updates publishedAt and status.
+     */
+    suspend fun publishAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            val ent = dao.getCreationById(id) ?: return@withContext
+            val now = System.currentTimeMillis()
+            val publishedAtVal = ent.publishedAt ?: now
+            val updated = ent.copy(
+                publishedAt = publishedAtVal,
+                status = "DONE",
+                updatedAt = now
+            )
+            dao.updateCreation(updated)
+        }
+    }
+
+    /**
+     * Convenience (non-suspending) wrapper for UI: triggers publish in background.
+     */
+    fun publishAICreationNow(id: String) {
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                publishAICreation(id)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
