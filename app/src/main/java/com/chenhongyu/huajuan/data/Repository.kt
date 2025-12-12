@@ -516,36 +516,33 @@ class Repository(private val context: Context) {
     // 获取AI响应
     suspend fun getAIResponse(messages: List<Message>, conversationId: String): String {
         try {
-            // 使用模型API工厂创建相应服务
             val modelApiFactory = ModelApiFactory(this)
             val modelApiService = modelApiFactory.getCurrentModelApiService()
-            
-            // 获取当前选中的模型信息
+            val useCloud = getUseCloudModel()
             val serviceProvider = getServiceProvider()
-            val selectedModelDisplayName = getSelectedModel()
-            
-            val modelDataProvider = ModelDataProvider(this)
-            val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
-            val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
-                ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
-            
-            // 获取对话的系统提示词
+            val selectedModelDisplayName = if (useCloud) getSelectedModel() else getLocalSelectedModel()
+            println("DEBUG: getAIResponse useCloudModel=$useCloud, serviceProvider='$serviceProvider', selectedModelDisplayName='$selectedModelDisplayName'")
+            val modelInfo = if (useCloud) {
+                val modelDataProvider = ModelDataProvider(this)
+                val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+                modelList.find { it.displayName == selectedModelDisplayName }
+                    ?: ModelInfo(selectedModelDisplayName, selectedModelDisplayName)
+            } else {
+                ModelInfo(selectedModelDisplayName, selectedModelDisplayName)
+            }
+            println("DEBUG: getAIResponse resolved modelInfo.displayName='${modelInfo.displayName}', apiCode='${modelInfo.apiCode}'")
             val systemPrompt = getConversationSystemPrompt(conversationId)
-            
-            // 将消息转换为网络消息格式，并在最前面加上系统提示词
             val networkMessages = listOf(
                 com.chenhongyu.huajuan.network.Message(
                     role = "system",
                     content = systemPrompt
                 )
-            ) + messages.map { 
+            ) + messages.map {
                 com.chenhongyu.huajuan.network.Message(
                     role = if (it.isUser) "user" else "assistant",
                     content = it.text
                 )
             }
-            
-            // 调用相应的模型API服务
             return modelApiService.getAIResponse(networkMessages, modelInfo)
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
@@ -555,21 +552,24 @@ class Repository(private val context: Context) {
     // 兼容性的流式输出包装：如果后端/本地模型不支持原生流式API，
     // 我们仍然可以将完整回复按词或固定大小分块后以Flow的方式逐步发出，
     // 从而为UI提供平滑的流式渲染体验。
-    fun streamAIResponse(messages: List<Message>, conversationId: String): kotlinx.coroutines.flow.Flow<com.chenhongyu.huajuan.stream.ChatEvent> {
-        // Build modelInfo and networkMessages then return underlying service Flow directly
+    fun streamAIResponse(messages: List<Message>, conversationId: String): Flow<com.chenhongyu.huajuan.stream.ChatEvent> {
         val modelApiFactory = ModelApiFactory(this)
         val modelApiService = modelApiFactory.getCurrentModelApiService()
-
+        val useCloud = getUseCloudModel()
         val serviceProvider = getServiceProvider()
-        val selectedModelDisplayName = getSelectedModel()
-
-        val modelDataProvider = ModelDataProvider(this)
-        val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
-        val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
-            ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
-
+        val selectedModelDisplayName = if (useCloud) getSelectedModel() else getLocalSelectedModel()
+        println("DEBUG: useCloudModel=$useCloud, serviceProvider='$serviceProvider', selectedModelDisplayName='$selectedModelDisplayName'")
+        val modelInfo = if (useCloud) {
+            val modelDataProvider = ModelDataProvider(this)
+            val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+            modelList.find { it.displayName == selectedModelDisplayName }
+                ?: ModelInfo(selectedModelDisplayName, selectedModelDisplayName)
+        } else {
+            // 本地模型直接使用displayName作为识别码
+            ModelInfo(selectedModelDisplayName, selectedModelDisplayName)
+        }
+        println("DEBUG: Resolved modelInfo.displayName='${modelInfo.displayName}', apiCode='${modelInfo.apiCode}'")
         val systemPrompt = getConversationSystemPrompt(conversationId)
-
         val networkMessages = listOf(
             com.chenhongyu.huajuan.network.Message(
                 role = "system",
@@ -822,6 +822,15 @@ class Repository(private val context: Context) {
                 throw e
             }
         }
+    }
+
+    fun getLocalSelectedModel(): String {
+        // 本地模型默认选择为 Qwen3-0.6B-MNN
+        return prefs.getString("local_selected_model", "Qwen3-0.6B-MNN") ?: "Qwen3-0.6B-MNN"
+    }
+
+    fun setLocalSelectedModel(model: String) {
+        prefs.edit().putString("local_selected_model", model).apply()
     }
 
 }

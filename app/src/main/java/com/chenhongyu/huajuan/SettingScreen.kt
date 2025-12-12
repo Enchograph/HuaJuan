@@ -654,6 +654,7 @@ fun SettingScreen(
                                                 selected = localSelectedModel == "Qwen3-0.6B-MNN",
                                                 onClick = {
                                                     localSelectedModel = "Qwen3-0.6B-MNN"
+                                                    repository.setLocalSelectedModel("Qwen3-0.6B-MNN")
                                                     println("选择了Qwen3-0.6B-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
@@ -691,6 +692,7 @@ fun SettingScreen(
                                                 selected = localSelectedModel == "MobileLLM-125M-MNN",
                                                 onClick = {
                                                     localSelectedModel = "MobileLLM-125M-MNN"
+                                                    repository.setLocalSelectedModel("MobileLLM-125M-MNN")
                                                     println("选择了MobileLLM-125M-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
