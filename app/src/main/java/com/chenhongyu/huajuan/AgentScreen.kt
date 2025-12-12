@@ -53,6 +53,7 @@ fun AgentScreen(
                     Text(
                         text = "发现智能体",
                         fontWeight = FontWeight.Bold
+
                     )
                 },
                 // use menu icon like other pages so header logic is consistent

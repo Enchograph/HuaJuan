@@ -37,7 +37,7 @@ object GenerationManager {
         return try {
             // New simple generation: fetch a random portrait from Unsplash
             val bitmap: Bitmap = try {
-                withContext(Dispatchers.IO) { UnsplashFetcher.fetchRandomPortraitBitmap(context, entity.width) }
+                withContext(Dispatchers.IO) { UnsplashFetcher.fetchRandomPortraitBitmap(entity.width) }
             } catch (e: Exception) {
                 // fallback to HTML renderer pipeline if Unsplash fetch fails
                 e.printStackTrace()

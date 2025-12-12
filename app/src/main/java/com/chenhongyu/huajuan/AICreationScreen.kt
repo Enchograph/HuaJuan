@@ -1,5 +1,6 @@
 package com.chenhongyu.huajuan
 
+import android.R.attr.fontWeight
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -12,7 +13,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
@@ -66,7 +67,12 @@ fun AICreationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI 创作") },
+                title = {
+                    Text(
+                        text = "AI 创作",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onMenuClick) {
                         Icon(Icons.Outlined.Menu, contentDescription = "打开侧边栏")
@@ -209,7 +215,15 @@ fun AICreationEditor(
     var isGenerating by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        // Limit dialog height to 90% of screen to avoid overly tall layout
+        val configuration = LocalConfiguration.current
+        val screenHeight = configuration.screenHeightDp.dp
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = screenHeight * 0.9f),
+            color = MaterialTheme.colorScheme.background
+        ) {
             Scaffold(
                 topBar = {
                     TopAppBar(
@@ -222,54 +236,63 @@ fun AICreationEditor(
                     )
                 }
             ) { padding ->
-                Column(modifier = Modifier
-                    .padding(padding)
-                    .padding(12.dp) // slightly reduced padding
-                    .fillMaxSize(), verticalArrangement = Arrangement.Top) {
-
-                    // header info: username, ai role, times
-//                    Text(text = "发布者: ${userInfo.username}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-//                    Text(text = "AI 角色: ${repository.getConversationRoleName(conversationId)}", style = MaterialTheme.typography.bodySmall)
-//                    Spacer(modifier = Modifier.height(6.dp))
-//                    val convStart = conversationMessages?.firstOrNull()?.timestamp ?: (conversationAt?.let { java.util.Date(it) })
-//                    if (convStart != null) {
-//                        Text(text = "对话时间: ${formatConversationTime(convStart)}", style = MaterialTheme.typography.bodySmall)
-//                    }
-//                    Text(text = "发布时间: ${formatTime(java.util.Date(publishedAt))}", style = MaterialTheme.typography.bodySmall)
-//
-//                    Spacer(modifier = Modifier.height(8.dp))
-
+                Column(
+                    modifier = Modifier
+                        .padding(padding)
+                        .padding(12.dp)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    // Section: 基本信息
+                    Text(text = "基本信息", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
                         label = { Text("帖子标题") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = commentary,
                         onValueChange = { commentary = it },
                         label = { Text("帖子正文") },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                        maxLines = 6
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp),
+                        maxLines = 8,
+                        shape = RoundedCornerShape(12.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
+                    // Section: 选项
+                    Text(text = "选项", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = includeConversation, onCheckedChange = { includeConversation = it })
+                        Checkbox(
+                            checked = includeConversation,
+                            onCheckedChange = { includeConversation = it }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(text = "包含对话内容")
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(text = "选择模板", style = MaterialTheme.typography.titleSmall)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        templates.forEach { t ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    // Use horizontal scrolling to avoid crowding when template names are long
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        items(templates.size) { idx ->
+                            val t = templates[idx]
                             FilterChip(
                                 selected = (t == selectedTemplate),
                                 onClick = { selectedTemplate = t },
@@ -280,122 +303,53 @@ fun AICreationEditor(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // preview area
-//                    Box(modifier = Modifier
-//                        .fillMaxWidth()
-//                        .height(220.dp)
-//                        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-//                        if (previewBmp != null) {
-//                            Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = "封面预览", modifier = Modifier
-//                                .fillMaxSize()
-//                                .clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-//                        } else {
-//                            Text(if (isGenerating) "正在生成封面..." else "尚未生成封面（封面将作为帖子封面）")
-//                        }
-//                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = onDismiss) { Text("取消") }
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Button: 生成预览
-                        TextButton(onClick = {
-                            scope.launch {
-                                try {
-                                    isGenerating = true
-                                    val convText = if (includeConversation && conversationMessages != null) {
-                                        conversationMessages.joinToString(separator = "\n") { m ->
-                                            val who = if (m.isUser) repository.getUserInfo().username else repository.getConversationRoleName(conversationId)
-                                            "[${who}] ${m.text}"
-                                        }
-                                    } else null
-
-                                    val promptHtml = when (selectedTemplate) {
-                                        "poem" -> "<div style=\"font-family: serif; padding:24px; text-align:center;\"><h2>${title}</h2><p>${commentary.replace("\n", "<br/>")}</p><footer style=\"margin-top:16px;opacity:0.7;\">— ${userInfo.username}</footer></div>"
-                                        "card" -> "<div style=\"font-family: sans-serif; padding:20px; border:1px solid #eee; border-radius:12px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
-                                        "dialog" -> {
-                                            // load template from assets and fill with data
-                                            try {
-                                                val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
-                                                val dataMap = mapOf(
-                                                    "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
-                                                    "userName" to userInfo.username,
-                                                    "userSig" to userInfo.signature,
-                                                    "aiName" to repository.getConversationRoleName(conversationId),
-                                                    "aiModel" to repository.getSelectedModel(),
-                                                    "aiPrompt" to commentary,
-                                                    "userContent" to (convText ?: content),
-                                                    "aiContent" to ""
-                                                )
-                                                HtmlTemplateFiller.fillTemplate(tpl, dataMap)
-                                            } catch (_: Exception) {
-                                                // fallback to simple card HTML
-                                                "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
-                                            }
-                                        }
-                                        else -> "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
-                                    }
-
-                                    val id = repository.createAICreationFromMessage(
-                                        title = title,
-                                        username = repository.getUserInfo().username,
-                                        userSignature = repository.getUserInfo().signature,
-                                        aiRoleName = repository.getConversationRoleName(conversationId),
-                                        aiModelName = repository.getSelectedModel(),
-                                        promptHtml = promptHtml,
-                                        promptJson = "{\"sourceConversationId\": \"$conversationId\", \"messageId\": \"${message.id}\"}",
-                                        conversationText = convText ?: content,
-                                        conversationAt = conversationAt,
-                                        publishedAt = publishedAt,
-                                        commentary = commentary
-                                    )
-
-                                    // remember id for publishing later
-                                    currentCreationId = id
-
-                                    // generate synchronously to get image immediately for preview
-                                    val ok = repository.generateAICreationNow(id)
-                                    if (ok) {
-                                        // load entity image path
-                                        val dao = AppDatabase.getDatabase(context).aiCreationDao()
-                                        val ent = withContext(Dispatchers.IO) { dao.getCreationById(id) }
-                                        val imgPath = ent?.imageFileName
-                                        if (!imgPath.isNullOrEmpty()) {
-                                            previewBmp = withContext(Dispatchers.IO) {
-                                                try {
-                                                    BitmapFactory.decodeFile(imgPath)
-                                                } catch (_: Exception) {
-                                                    null
-                                                }
-                                            }
-                                        } else {
-                                            previewBmp = null
-                                        }
-                                    } else {
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(context, "已生成失败，请稍后重试", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    Toast.makeText(context, "生成错误: ${e.message}", Toast.LENGTH_SHORT).show()
-                                } finally {
-                                    isGenerating = false
-                                }
+                    // Section: 预览 - shrink min/max height to be more compact
+                    Text(text = "封面预览", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 160.dp, max = 260.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (previewBmp != null) {
+                            Image(
+                                bitmap = previewBmp!!.asImageBitmap(),
+                                contentDescription = "封面预览",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                val hint = if (isGenerating) "正在生成封面..." else "尚未生成封面（封面将作为帖子封面）"
+                                Text(hint, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "提示：点击下方“生成预览”按钮生成封面图。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        }) { Text("生成预览") }
+                        }
+                    }
 
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Action bar
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(onClick = onDismiss, enabled = !isGenerating) { Text("取消") }
                         Spacer(modifier = Modifier.width(8.dp))
-
-                        // Button: 发布（确保生成并标记为已发布）
-                        Button(onClick = {
-                            scope.launch {
-                                try {
-                                    isGenerating = true
-                                    // ensure we have an entity id
-                                    val id = currentCreationId ?: run {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        isGenerating = true
                                         val convText = if (includeConversation && conversationMessages != null) {
                                             conversationMessages.joinToString(separator = "\n") { m ->
                                                 val who = if (m.isUser) repository.getUserInfo().username else repository.getConversationRoleName(conversationId)
@@ -429,7 +383,7 @@ fun AICreationEditor(
                                             else -> "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
                                         }
 
-                                        repository.createAICreationFromMessage(
+                                        val id = repository.createAICreationFromMessage(
                                             title = title,
                                             username = repository.getUserInfo().username,
                                             userSignature = repository.getUserInfo().signature,
@@ -442,54 +396,147 @@ fun AICreationEditor(
                                             publishedAt = publishedAt,
                                             commentary = commentary
                                         )
-                                    }
 
-                                    // Generate if image missing
-                                    val dao = AppDatabase.getDatabase(context).aiCreationDao()
-                                    val ent = withContext(Dispatchers.IO) { dao.getCreationById(id) }
-                                    if (ent == null) {
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(context, "创建失败", Toast.LENGTH_SHORT).show()
-                                        }
-                                        return@launch
-                                    }
+                                        // remember id for publishing later
+                                        currentCreationId = id
 
-                                    if (ent.imageFileName.isNullOrEmpty()) {
-                                        val genOk = repository.generateAICreationNow(id)
-                                        if (!genOk) {
+                                        // generate synchronously to get image immediately for preview
+                                        val ok = repository.generateAICreationNow(id)
+                                        if (ok) {
+                                            // load entity image path
+                                            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+                                            val ent = withContext(Dispatchers.IO) { dao.getCreationById(id) }
+                                            val imgPath = ent?.imageFileName
+                                            previewBmp = if (!imgPath.isNullOrEmpty()) {
+                                                withContext(Dispatchers.IO) {
+                                                    try {
+                                                        BitmapFactory.decodeFile(imgPath)
+                                                    } catch (_: Exception) {
+                                                        null
+                                                    }
+                                                }
+                                            } else null
+                                        } else {
                                             withContext(Dispatchers.Main) {
-                                                Toast.makeText(context, "生成封面失败，已加入队列", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "已生成失败，请稍后重试", Toast.LENGTH_SHORT).show()
                                             }
-                                            // enqueue for background generation and still publish the post
-                                            repository.enqueueAICreationGeneration(id)
                                         }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        Toast.makeText(context, "生成错误: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        isGenerating = false
                                     }
-
-                                    // mark published (suspend)
-                                    withContext(Dispatchers.IO) {
-                                        repository.publishAICreation(id)
-                                    }
-
-                                    // callback on main thread
-                                    withContext(Dispatchers.Main) {
-                                        onPublished(id)
-                                        Toast.makeText(context, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
-                                    }
-
-                                    // dismiss editor
-                                    onDismiss()
-
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "发布失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    }
-                                } finally {
-                                    isGenerating = false
                                 }
-                            }
-                        }) {
-                            Text("发布并发布到 AI 创作")
+                            },
+                            enabled = !isGenerating
+                        ) { Text("生成预览") }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        isGenerating = true
+                                        // ensure we have an entity id
+                                        val id = currentCreationId ?: run {
+                                            val convText = if (includeConversation && conversationMessages != null) {
+                                                conversationMessages.joinToString(separator = "\n") { m ->
+                                                    val who = if (m.isUser) repository.getUserInfo().username else repository.getConversationRoleName(conversationId)
+                                                    "[${who}] ${m.text}"
+                                                }
+                                            } else null
+
+                                            val promptHtml = when (selectedTemplate) {
+                                                "poem" -> "<div style=\"font-family: serif; padding:24px; text-align:center;\"><h2>${title}</h2><p>${commentary.replace("\n", "<br/>")}</p><footer style=\"margin-top:16px;opacity:0.7;\">— ${userInfo.username}</footer></div>"
+                                                "card" -> "<div style=\"font-family: sans-serif; padding:20px; border:1px solid #eee; border-radius:12px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                                "dialog" -> {
+                                                    // load template from assets and fill with data
+                                                    try {
+                                                        val tpl = context.assets.open("ai_templates/dialog.html").bufferedReader().use { it.readText() }
+                                                        val dataMap = mapOf(
+                                                            "time" to java.text.SimpleDateFormat("MMM dd, yyyy · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(publishedAt)),
+                                                            "userName" to userInfo.username,
+                                                            "userSig" to userInfo.signature,
+                                                            "aiName" to repository.getConversationRoleName(conversationId),
+                                                            "aiModel" to repository.getSelectedModel(),
+                                                            "aiPrompt" to commentary,
+                                                            "userContent" to (convText ?: content),
+                                                            "aiContent" to ""
+                                                        )
+                                                        HtmlTemplateFiller.fillTemplate(tpl, dataMap)
+                                                    } catch (_: Exception) {
+                                                        // fallback to simple card HTML
+                                                        "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                                    }
+                                                }
+                                                else -> "<div style=\"font-family: system-ui; padding:16px;\"><h3>${title}</h3><div>${commentary.replace("\n", "<br/>")}</div></div>"
+                                            }
+
+                                            repository.createAICreationFromMessage(
+                                                title = title,
+                                                username = repository.getUserInfo().username,
+                                                userSignature = repository.getUserInfo().signature,
+                                                aiRoleName = repository.getConversationRoleName(conversationId),
+                                                aiModelName = repository.getSelectedModel(),
+                                                promptHtml = promptHtml,
+                                                promptJson = "{\"sourceConversationId\": \"$conversationId\", \"messageId\": \"${message.id}\"}",
+                                                conversationText = convText ?: content,
+                                                conversationAt = conversationAt,
+                                                publishedAt = publishedAt,
+                                                commentary = commentary
+                                            )
+                                        }
+
+                                        // Generate if image missing
+                                        val dao = AppDatabase.getDatabase(context).aiCreationDao()
+                                        val ent = withContext(Dispatchers.IO) { dao.getCreationById(id) }
+                                        if (ent == null) {
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(context, "创建失败", Toast.LENGTH_SHORT).show()
+                                            }
+                                            return@launch
+                                        }
+
+                                        if (ent.imageFileName.isNullOrEmpty()) {
+                                            val genOk = repository.generateAICreationNow(id)
+                                            if (!genOk) {
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(context, "生成封面失败，已加入队列", Toast.LENGTH_SHORT).show()
+                                                }
+                                                // enqueue for background generation and still publish the post
+                                                repository.enqueueAICreationGeneration(id)
+                                            }
+                                        }
+
+                                        // mark published (suspend)
+                                        withContext(Dispatchers.IO) {
+                                            repository.publishAICreation(id)
+                                        }
+
+                                        // callback on main thread
+                                        withContext(Dispatchers.Main) {
+                                            onPublished(id)
+                                            Toast.makeText(context, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
+                                        }
+
+                                        // dismiss editor
+                                        onDismiss()
+
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "发布失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } finally {
+                                        isGenerating = false
+                                    }
+                                }
+                            },
+                            enabled = !isGenerating
+                        ) {
+                            Text("发布")
                         }
                     }
                 }
