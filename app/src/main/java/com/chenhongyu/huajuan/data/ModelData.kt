@@ -47,7 +47,15 @@ class ModelDataProvider(private val repository: Repository) {
     fun getAllServiceProviders(): List<String> {
         val predefined = Companion.predefinedServiceProviders.keys.toList()
         val custom = repository.getCustomServiceProviders().toList()
-        val allProviders = (predefined + custom).sorted() // 排序确保一致性
+        // 合并列表
+        var allProviders = (predefined + custom).distinct()
+        // 如果包含“应用试用”，将其移动到列表首位
+        if (allProviders.contains("应用试用")) {
+            allProviders = listOf("应用试用") + allProviders.filter { it != "应用试用" }
+        } else {
+            // 保持原有的排序一致性（按名称排序）
+            allProviders = allProviders.sorted()
+        }
         println("获取到所有服务提供商列表，共 ${allProviders.size} 个: $allProviders")
         return allProviders
     }
@@ -56,36 +64,21 @@ class ModelDataProvider(private val repository: Repository) {
         val predefinedServiceProviders = mapOf(
             "应用试用" to ServiceProviderInfo(
                 "应用试用",
-                "https://api.siliconflow.cn/v1/chat/completions/",
+                "https://ai.soruxgpt.com/v1/chat/completions/",
                 listOf(
-                    ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2"),
-                    ModelInfo("DeepSeek-V3.1-Terminus", "deepseek-ai/DeepSeek-V3.1-Terminus"),
-                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-ai/DeepSeek-V3.2-Exp"),
-                    ModelInfo("DeepSeek-R1", "deepseek-ai/DeepSeek-R1"),
-                    ModelInfo("DeepSeek-V3", "deepseek-ai/DeepSeek-V3"),
-                    ModelInfo("Qwen3-VL-32B-Instruct", "Qwen/Qwen3-VL-32B-Instruct"),
-                    ModelInfo("Qwen3-VL-32B-Thinking", "Qwen/Qwen3-VL-32B-Thinking"),
-                    ModelInfo("Qwen3-VL-8B-Instruct", "Qwen/Qwen3-VL-8B-Instruct"),
-                    ModelInfo("Qwen3-VL-8B-Thinking", "Qwen/Qwen3-VL-8B-Thinking"),
-                    ModelInfo("Qwen3-VL-30B-A3B-Instruct", "Qwen/Qwen3-VL-30B-A3B-Instruct"),
-                    ModelInfo("Qwen3-VL-30B-A3B-Thinking", "Qwen/Qwen3-VL-30B-A3B-Thinking"),
-                    ModelInfo("Qwen3-VL-235B-A22B-Instruct", "Qwen/Qwen3-VL-235B-A22B-Instruct"),
-                    ModelInfo("Qwen3-VL-235B-A22B-Thinking", "Qwen/Qwen3-VL-235B-A22B-Thinking"),
-                    ModelInfo("Qwen3-Omni-30B-A3B-Instruct", "Qwen/Qwen3-Omni-30B-A3B-Instruct"),
-                    ModelInfo("Qwen3-Omni-30B-A3B-Thinking", "Qwen/Qwen3-Omni-30B-A3B-Thinking"),
-                    ModelInfo("Qwen3-Next-80B-A3B-Instruct", "Qwen/Qwen3-Next-80B-A3B-Instruct"),
-                    ModelInfo("Qwen3-Next-80B-A3B-Thinking", "Qwen/Qwen3-Next-80B-A3B-Thinking"),
-                    ModelInfo("Qwen-Image-Edit-2509", "Qwen/Qwen-Image-Edit-2509"),
-                    ModelInfo("Qwen3-Coder-30B-A3B-Instruct", "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
-                    ModelInfo("Qwen3-Coder-480B-A35B-Instruct", "Qwen/Qwen3-Coder-480B-A35B-Instruct"),
-                    ModelInfo("Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-30B-A3B-Thinking-2507"),
-                    ModelInfo("Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-30B-A3B-Instruct-2507"),
-                    ModelInfo("Qwen3-235B-A22B-Thinking-2507", "Qwen/Qwen3-235B-A22B-Thinking-2507"),
-                    ModelInfo("Qwen3-235B-A22B-Instruct-2507", "Qwen/Qwen3-235B-A22B-Instruct-2507"),
-                    ModelInfo("QwenLong-L1-32B", "Tongyi-Zhiwen/QwenLong-L1-32B"),
-                    ModelInfo("Qwen3-32B", "Qwen/Qwen3-32B"),
-                    ModelInfo("Qwen3-14B", "Qwen/Qwen3-14B"),
-                    ModelInfo("Qwen2.5-VL-72B-Instruct", "Qwen/Qwen2.5-VL-72B-Instruct")
+                    ModelInfo("ChatGPT-4o", "chatgpt-4o"),
+                    ModelInfo("Claude-Sonnet", "claude-sonnet"),
+                    ModelInfo("Claude-Sonnet-4-5-All", "claude-sonnet-4-5-all"),
+                    ModelInfo("DeepSeek", "deepseek"),
+                    ModelInfo("DeepSeek-Reasoner", "deepseek-reasoner"),
+                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-v3.2-exp"),
+                    ModelInfo("Net-DeepSeek-R1", "net-deepseek-r1"),
+                    ModelInfo("Gemini-2.5", "gemini-2.5"),
+                    ModelInfo("Gemini-2.5-Flash-Thinking", "gemini-2.5-flash-thinking"),
+                    ModelInfo("Gemini-2.5-Pro-Thinking", "gemini-2.5-pro-thinking"),
+                    ModelInfo("Gemini-3", "gemini-3"),
+                    ModelInfo("Gemini-3-Pro-Preview-Thinking", "gemini-3-pro-preview-thinking"),
+                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo")
                 )
             ),
             "硅基流动" to ServiceProviderInfo(

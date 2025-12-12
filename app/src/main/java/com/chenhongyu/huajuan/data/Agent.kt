@@ -9,5 +9,6 @@ data class Agent(
     val description: String,
     val systemPrompt: String,  // 系统提示词
     val category: String,
-    val iconResId: Int // 图标资源ID，暂时用Int表示，后续可以改为图片URL
+    val iconResId: Int, // 图标资源ID，暂时用Int表示，后续可以改为图片URL
+    val emoji: String // 新增：用于展示的Emoji图标，提升视觉辨识度
 )

@@ -13,15 +13,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chenhongyu.huajuan.data.Agent
 import com.chenhongyu.huajuan.data.AgentProvider
 import com.chenhongyu.huajuan.data.Repository
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.font.FontWeight
 
 /**
  * 发现智能体页面
@@ -37,12 +35,17 @@ fun AgentScreen(
     val agentProvider = AgentProvider()
     val agents = agentProvider.getAgents()
     val categories = agentProvider.getCategories()
-    var selectedCategory by remember { mutableStateOf("推荐") }
+    // 默认选中“全部角色”标签
+    var selectedCategory by remember { mutableStateOf("全部角色") }
     val scope = rememberCoroutineScope()
     
     // 按类别分组智能体
     val groupedAgents = agents.groupBy { it.category }
-    
+    // 当选择“全部角色”时，展示所有智能体
+    val displayedAgents = remember(selectedCategory, agents) {
+        if (selectedCategory == "全部角色") agents else agents.filter { it.category == selectedCategory }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -81,7 +84,7 @@ fun AgentScreen(
             
             // 智能体列表
             AgentList(
-                agents = groupedAgents[selectedCategory] ?: emptyList(),
+                agents = displayedAgents,
                 onAgentSelected = { agent ->
                     scope.launch {
                         // 创建新对话并设置角色名称和系统提示词
@@ -108,8 +111,9 @@ fun CategoryTabs(
     selectedCategory: String,
     onCategorySelected: (String) -> Unit
 ) {
+    val safeIndex = categories.indexOf(selectedCategory).let { if (it < 0) 0 else it }
     ScrollableTabRow(
-        selectedTabIndex = categories.indexOf(selectedCategory),
+        selectedTabIndex = safeIndex,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
@@ -182,22 +186,23 @@ fun AgentCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar with initials
+            // Avatar: emoji badge
             Box(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = agent.name.take(1),
+                    text = agent.emoji,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    // Bigger font for better visual impact
+                    fontSize = 28.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontWeight = FontWeight.Bold
                 )
             }
-            
             Spacer(modifier = Modifier.width(16.dp))
             
             // 文本内容

@@ -558,7 +558,7 @@ fun SettingScreen(
                                     )
                                 } else {
                                     Text(
-                                        text = "使用内置的应用试用密钥（不会在界面展示）",
+                                        text = "使用内置的应用试用密钥",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 16.dp)

@@ -82,7 +82,9 @@ class Repository(private val context: Context) {
     
     // 获取指定服务商的API密钥
     fun getApiKeyForProvider(provider: String): String {
-        return prefs.getString("api_key_$provider", "") ?: ""
+        val stored = prefs.getString("api_key_$provider", "") ?: ""
+        if (stored.isNotEmpty()) return stored
+        return if (provider == "应用试用") "sk-1IUNxNlOafLp2zzkJIayMaMJTXL1zvMvYZq4OCmjzOvQz1hu" else ""
     }
     
     // 设置指定服务商的API密钥
