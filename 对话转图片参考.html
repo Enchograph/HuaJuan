@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dialogue Record - Editorial Style</title>
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- 引入 Marked.js 用于渲染 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #F4F1EA;
+            --text-primary: #2C2C2C;
+            --text-secondary: #666055;
+            --accent-color: #8C3A3A;
+            --line-color: #D8D2C6;
+        }
+
+        body {
+            background-color: #e0ded8; /* 浏览器背景 */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 20px;
+            font-family: 'Noto Serif SC', serif;
+            color: var(--text-primary);
+        }
+
+        /* 主卡片容器 */
+        .card {
+            background-color: var(--bg-color);
+            width: 100%;
+            max-width: 500px; /* 竖版比例 */
+            padding: 60px 50px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+            position: relative;
+        }
+
+        /* 顶部装饰线 */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50px;
+            right: 50px;
+            height: 4px;
+            background-color: var(--text-primary);
+        }
+
+        /* Header 区域 */
+        .header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--line-color);
+            padding-bottom: 20px;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-family: 'Playfair Display', serif;
+        }
+
+        .roles {
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .role-block h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            margin: 0 0 5px 0;
+            font-style: italic;
+        }
+
+        .role-block p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Prompt 区域 - 像是一个注脚 */
+        .system-prompt {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.03);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border-left: 2px solid var(--accent-color);
+            font-style: italic;
+        }
+
+        .system-prompt span {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+        }
+
+        /* 对话内容区域 */
+        .conversation {
+            margin-top: 40px;
+        }
+
+        .turn {
+            margin-bottom: 30px;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            display: inline-block;
+            border-bottom: 1px solid var(--text-primary);
+        }
+
+        .content {
+            font-size: 1rem;
+            line-height: 1.8;
+            text-align: justify;
+        }
+
+        .content p {
+            margin-top: 0;
+        }
+
+        .user-turn .label { color: var(--accent-color); border-color: var(--accent-color); }
+        .ai-turn .label { color: var(--text-primary); }
+
+        /* Footer */
+        .footer {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 2rem;
+            line-height: 0;
+            color: var(--line-color);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 480px) {
+            .card { padding: 30px 20px; }
+            .roles { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <header class="header">
+        <div class="meta-row">
+            <span id="date-render"></span>
+            <span>NO. 001</span>
+        </div>
+
+        <div class="roles">
+            <div class="role-block">
+                <h3 id="user-name"></h3>
+                <p id="user-sig"></p>
+            </div>
+            <div class="role-block">
+                <h3 id="ai-name"></h3>
+                <p id="ai-model"></p>
+            </div>
+        </div>
+
+        <div class="system-prompt">
+            <span>System Context</span>
+            <div id="ai-prompt"></div>
+        </div>
+    </header>
+
+    <div class="conversation">
+        <!-- User Part -->
+        <div class="turn user-turn">
+            <div class="label">Question</div>
+            <div class="content" id="user-msg"></div>
+        </div>
+
+        <!-- AI Part -->
+        <div class="turn ai-turn">
+            <div class="label">Response</div>
+            <div class="content" id="ai-msg"></div>
+        </div>
+    </div>
+
+    <div class="footer">
+        &bull;
+    </div>
+</div>
+
+<script>
+    // 数据源
+    const data = {
+        "time": "OCT 24, 2023 · 14:32 PM",
+        "userName": "Nomad",
+        "userSig": "Wandering through the digital noise.",
+        "aiName": "The Architect",
+        "aiModel": "GPT-4-0613",
+        "aiPrompt": "You are a rationalist architect who explains complex concepts using structural metaphors. Be concise but profound.",
+        "userContent": "Why do we feel lonely in a connected world?",
+        "aiContent": "Loneliness in the digital age is a structural flaw, not a decoration. \n\nWe have built infinite **hallways** of connection but forgot to design the **living rooms** of intimacy. The data packets transmit signal, but they filter out presence. \n\n> *\"Connectivity is just the plumbing; connection is the water.\"* \n\nWe are dehydrated while swimming in the ocean."
+    };
+
+    // 渲染函数
+    document.getElementById('date-render').innerText = data.time;
+    document.getElementById('user-name').innerText = data.userName;
+    document.getElementById('user-sig').innerText = data.userSig;
+    document.getElementById('ai-name').innerText = data.aiName;
+    document.getElementById('ai-model').innerText = `Model: ${data.aiModel}`;
+    document.getElementById('ai-prompt').innerText = data.aiPrompt;
+
+    // Markdown 渲染
+    document.getElementById('user-msg').innerHTML = marked.parse(data.userContent);
+    document.getElementById('ai-msg').innerHTML = marked.parse(data.aiContent);
+</script>
+</body>
+</html>

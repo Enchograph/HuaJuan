@@ -51,7 +51,7 @@ import com.chenhongyu.huajuan.data.UserInfo
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
-
+import com.chenhongyu.huajuan.data.Message // 导入Message类
 
 /**
  * 设置界面
@@ -77,9 +77,12 @@ fun SettingScreen(
     }
     var userInfo by remember { mutableStateOf(UserInfo()) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var debugMode by remember { mutableStateOf<Boolean>(repository.getDebugMode()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+    // 本地模型选中状态（仅在 useCloudModel = false 时使用）
+    var localSelectedModel by remember { mutableStateOf("Qwen3-0.6B-MNN") }
+
     // 添加调试输出
     LaunchedEffect(serviceProvider) {
         println("当前选中的服务提供商: $serviceProvider")
@@ -274,58 +277,140 @@ fun SettingScreen(
                         
                         Spacer(Modifier.height(16.dp))
                         
-                        // 清空对话数据库按钮
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        // 获取所有对话
-                                        val conversations = repository.getConversations()
-                                        // 删除所有对话（会级联删除所有消息）
-                                        conversations.forEach { conversation -> 
-                                            repository.deleteConversation(conversation.id)
-                                        }
-                                        Toast.makeText(context, "已清空所有对话", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "清空对话失败: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = MaterialTheme.colorScheme.onError
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("清空对话数据库")
+                            Column(
+                                modifier = Modifier.padding(end = 16.dp)
+                            ) {
+                                Text(
+                                    text = "调试模式",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (debugMode) "已启用" else "已禁用",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = debugMode,
+                                onCheckedChange = { 
+                                    debugMode = it
+                                    repository.setDebugMode(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurface,
+                                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            )
                         }
                         
-                        // 一键新建一百条对话按钮
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        for (i in 1..100) {
-                                            repository.createNewConversation("测试对话 #$i")
+                        if (debugMode) {
+                            Spacer(Modifier.height(16.dp))
+                            var showClearConfirm by remember { mutableStateOf(false) }
+
+                            // 清空对话数据库按钮
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            // 获取所有对话
+                                            val conversations = repository.getConversations()
+                                            // 删除所有对话（会级联删除所有消息）
+                                            conversations.forEach { conversation -> 
+                                                repository.deleteConversation(conversation.id)
+                                            }
+                                            Toast.makeText(context, "已清空所有对话", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "清空对话失败: ${e.message}", Toast.LENGTH_LONG).show()
                                         }
-                                        Toast.makeText(context, "已创建100条测试对话", Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "创建对话失败: ${e.message}", Toast.LENGTH_LONG).show()
                                     }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text("一键新建一百条对话")
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("清空对话数据库")
+                            }
+
+                            // 新增：删除数据库但保留API/密钥
+                            Button(
+                                onClick = { showClearConfirm = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("删除数据库（保留 API 与密钥）")
+                            }
+
+                            if (showClearConfirm) {
+                                AlertDialog(
+                                    onDismissRequest = { showClearConfirm = false },
+                                    title = { Text("确认删除数据库") },
+                                    text = { Text("该操作会删除除 API/密钥 之外的所有本地数据，无法恢复。确定继续吗？") },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            showClearConfirm = false
+                                            scope.launch {
+                                                try {
+                                                    repository.clearUserDataExceptApiKeys()
+                                                    Toast.makeText(context, "已删除本地数据（保留 API & 密钥）", Toast.LENGTH_SHORT).show()
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }) { Text("确认") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+                                    }
+                                )
+                            }
+
+                            // 一键新建一百条对话按钮
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            for (i in 1..100) {
+                                                repository.createNewConversation(
+                                                    title = "测试对话 #$i",
+                                                    roleName = "默认助手",
+                                                    systemPrompt = "你是一个AI助手"
+                                                )
+                                            }
+                                            Toast.makeText(context, "已创建100条测试对话", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "创建对话失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("一键新建一百条对话")
+                            }
                         }
                     }
                 }
@@ -422,56 +507,66 @@ fun SettingScreen(
                                 )
                                 
                                 var passwordVisibility by remember { mutableStateOf(false) }
-                                
-                                OutlinedTextField(
-                                    value = apiKey,
-                                    onValueChange = { 
-                                        apiKey = it
-                                        repository.setApiKeyForProvider(serviceProvider, it)
-                                    },
-                                    label = { Text("API密钥") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    visualTransformation = if (passwordVisibility) {
-                                        androidx.compose.ui.text.input.VisualTransformation.None
-                                    } else {
-                                        androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                    },
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                                    ),
-                                    trailingIcon = {
-                                        val image = if (passwordVisibility) {
-                                            Icons.Filled.Visibility
+
+                                // 如果当前服务提供商是 应用试用，则不在前端展示密钥输入框（密钥由代码写死）
+                                if (serviceProvider != "应用试用") {
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = {
+                                            apiKey = it
+                                            repository.setApiKeyForProvider(serviceProvider, it)
+                                        },
+                                        label = { Text("API密钥") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 16.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        visualTransformation = if (passwordVisibility) {
+                                            androidx.compose.ui.text.input.VisualTransformation.None
                                         } else {
-                                            Icons.Filled.VisibilityOff
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                        ),
+                                        trailingIcon = {
+                                            val image = if (passwordVisibility) {
+                                                Icons.Filled.Visibility
+                                            } else {
+                                                Icons.Filled.VisibilityOff
+                                            }
+
+                                            IconButton(onClick = {
+                                                passwordVisibility = !passwordVisibility
+                                            }) {
+                                                Icon(
+                                                    imageVector = image,
+                                                    contentDescription = if (passwordVisibility) {
+                                                        "隐藏密码"
+                                                    } else {
+                                                        "显示密码"
+                                                    }
+                                                )
+                                            }
                                         }
-                                        
-                                        IconButton(onClick = {
-                                            passwordVisibility = !passwordVisibility
-                                        }) {
-                                            Icon(
-                                                imageVector = image,
-                                                contentDescription = if (passwordVisibility) {
-                                                    "隐藏密码"
-                                                } else {
-                                                    "显示密码"
-                                                }
-                                            )
-                                        }
-                                    }
-                                )
-                                
+                                    )
+                                } else {
+                                    Text(
+                                        text = "使用内置的应用试用密钥",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 16.dp)
+                                    )
+                                }
+
                                 ModelSelector(
                                     serviceProvider = serviceProvider,
                                     selectedModel = selectedModel,
@@ -488,13 +583,14 @@ fun SettingScreen(
                                 onClick = {
                                     // 在实际应用中，这里会测试API连接
                                     scope.launch {
-                                        val testMessage = com.chenhongyu.huajuan.data.Message(
+                                        val testMessage = Message(
                                             id = "test-message",
                                             text = "输出“测试成功”四个字符，不要输出任何多余的格式和文字。",
                                             isUser = true,
                                             timestamp = java.util.Date()
                                         )
-                                        val response = repository.getAIResponse(listOf(testMessage))
+                                        // 使用默认对话ID进行测试
+                                        val response = repository.getAIResponse(listOf(testMessage), "default")
                                         Toast.makeText(context, response, Toast.LENGTH_LONG).show()
                                     }
                                 },
@@ -511,7 +607,113 @@ fun SettingScreen(
                             }
                         } else {
                             // 本地模型设置
-                            LocalModelSection()
+                            Column {
+                                Text(
+                                    text = "本地模型",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    ListItem(
+                                        headlineContent = { 
+                                            Text(
+                                                text = "Qwen3-0.6B-MNN",
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ) 
+                                        },
+                                        supportingContent = { 
+                                            Text(
+                                                text = "已下载",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) 
+                                        },
+                                        trailingContent = {
+                                            RadioButton(
+                                                selected = localSelectedModel == "Qwen3-0.6B-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "Qwen3-0.6B-MNN"
+                                                    println("选择了Qwen3-0.6B-MNN模型")
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = MaterialTheme.colorScheme.primary,
+                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                                
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    ListItem(
+                                        headlineContent = { 
+                                            Text(
+                                                text = "MobileLLM-125M-MNN",
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ) 
+                                        },
+                                        supportingContent = { 
+                                            Text(
+                                                text = "已下载",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) 
+                                        },
+                                        trailingContent = {
+                                            RadioButton(
+                                                selected = localSelectedModel == "MobileLLM-125M-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "MobileLLM-125M-MNN"
+                                                    println("选择了MobileLLM-125M-MNN模型")
+                                                },
+                                                colors = RadioButtonDefaults.colors(
+                                                    selectedColor = MaterialTheme.colorScheme.primary,
+                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                                
+                                // 添加新模型按钮
+                                OutlinedButton(
+                                    onClick = { 
+                                        /* 下载新模型 */
+                                        println("添加模型按钮被点击")
+                                        Toast.makeText(context, "模型广场功能正在开发中", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Add, 
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("添加模型")
+                                }
+                            }
                         }
                     }
                 }
@@ -1218,116 +1420,5 @@ fun ModelSelector(
                 }
             }
         )
-    }
-}
-
-
-@Composable
-fun LocalModelSection() {
-    Column {
-        Text(
-            text = "本地模型",
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            ListItem(
-                headlineContent = { 
-                    Text(
-                        text = "Qwen 7B",
-                        color = MaterialTheme.colorScheme.onSurface
-                    ) 
-                },
-                supportingContent = { 
-                    Text(
-                        text = "已下载",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) 
-                },
-                trailingContent = {
-                    RadioButton(
-                        selected = true,
-                        onClick = { 
-                            /* 选择模型 */
-                            println("选择了Qwen 7B模型")
-                        },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colorScheme.primary,
-                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            )
-        }
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            ListItem(
-                headlineContent = { 
-                    Text(
-                        text = "Llama 2 7B",
-                        color = MaterialTheme.colorScheme.onSurface
-                    ) 
-                },
-                supportingContent = { 
-                    Text(
-                        text = "已下载",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) 
-                },
-                trailingContent = {
-                    RadioButton(
-                        selected = false,
-                        onClick = { 
-                            /* 选择模型 */
-                            println("选择了Llama 2 7B模型")
-                        },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colorScheme.primary,
-                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            )
-        }
-        
-        // 添加新模型按钮
-        OutlinedButton(
-            onClick = { 
-                /* 下载新模型 */
-                println("添加模型按钮被点击")
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.onSurface
-            )
-        ) {
-            Icon(
-                Icons.Outlined.Add, 
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("添加模型")
-        }
     }
 }

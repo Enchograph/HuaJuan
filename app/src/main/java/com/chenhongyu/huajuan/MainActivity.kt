@@ -26,22 +26,29 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.chenhongyu.huajuan.data.Repository
 import com.chenhongyu.huajuan.data.AppState
+import com.skydoves.cloudy.CloudyState
+import com.skydoves.cloudy.rememberCloudyState
+import com.skydoves.cloudy.cloudy
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
 import com.chenhongyu.huajuan.ChatScreen
 import com.chenhongyu.huajuan.SettingScreen
 import com.chenhongyu.huajuan.SideDrawer
 import com.chenhongyu.huajuan.AICreationScreen
 import com.chenhongyu.huajuan.AgentScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -49,21 +56,21 @@ class MainActivity : ComponentActivity() {
     private lateinit var repository: Repository
     private var onBackPressedCallback: OnBackPressedCallback? = null
     private var closeDrawerCallback: (() -> Unit)? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
+
         // 初始化Repository
         repository = Repository(this)
-        
+
         setContent {
             MainApp(repository) { closeCallback ->
                 // 保存关闭侧边栏的回调函数
                 closeDrawerCallback = closeCallback
             }
         }
-        
+
         // 处理返回键事件
         onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -82,7 +89,8 @@ fun MainApp(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    
+    val context = LocalContext.current
+
     // 获取屏幕宽度
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -95,6 +103,9 @@ fun MainApp(
     
     // 从Repository获取深色模式设置
     val darkMode = remember { mutableStateOf(repository.getDarkMode()) }
+    
+    // 模糊效果状态
+    val cloudyState = rememberCloudyState()
     
     // 初始化AppState，从Repository加载对话历史
     var appState by remember {
@@ -133,6 +144,27 @@ fun MainApp(
         }
     }
     
+    // On startup, enqueue generation for any pending or failed AI creations so background generation will run
+    LaunchedEffect(Unit) {
+        try {
+            withContext(Dispatchers.IO) {
+                val dao = com.chenhongyu.huajuan.data.AppDatabase.getDatabase(context).aiCreationDao()
+                val list = dao.getAllCreations().first()
+                list.filter { item -> item.status != "DONE" && item.status != "GENERATING" }
+                    .forEach { entity ->
+                        try {
+                            repository.enqueueAICreationGeneration(entity.id)
+                            println("DEBUG: Enqueued pending generation for ai_creation id=${entity.id}")
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -168,6 +200,10 @@ fun MainApp(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .then(
+                        // 当侧边栏上下文菜单显示时，为主内容添加模糊效果
+                        if (/* 来自SideDrawer的状态 */ false) Modifier.cloudy(radius = 15) else Modifier
+                    )
             ) {
                 // 页面内容容器 - 使用偏移来切换页面
                 Box(
@@ -291,6 +327,22 @@ fun MainApp(
                                     scope.launch {
                                         drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
                                     }
+                                },
+                                repository = repository,
+                                onConversationCreated = { newConversationId ->
+                                    // Update app state so UI reflects the new conversation immediately
+                                    appState = appState.copy(
+                                        currentConversationId = newConversationId
+                                    )
+                                    appState = appState.copy(
+                                        conversations = repository.getConversations()
+                                    )
+                                    // switch to chat page
+                                    currentPage.value = 0
+                                    // close drawer
+                                    scope.launch {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
                                 }
                             )
                         }
@@ -317,10 +369,21 @@ fun MainApp(
                 .offset { IntOffset(drawerOffset.value.roundToInt(), 0) }
         ) {
             HuaJuanTheme(darkTheme = darkMode.value) {
+                var showContextMenu by remember { mutableStateOf(false) }
+                
                 SideDrawer(
                     onChatPageSelected = { conversationId -> 
                         println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
-                        // 正确设置当前对话ID
+                        // 如果是特殊标识符"refresh_needed"，则只刷新对话列表而不切换页面
+                        if (conversationId == "refresh_needed") {
+                            // 只更新对话列表
+                            appState = appState.copy(
+                                conversations = repository.getConversations()
+                            )
+                            return@SideDrawer
+                        }
+                        
+                        // 正常的页面切换逻辑
                         appState = appState.copy(
                             currentConversationId = if (conversationId == "default") null else conversationId
                         )
@@ -364,7 +427,9 @@ fun MainApp(
                     },
                     conversations = appState.conversations,
                     drawerWidth = drawerWidth,
-                    darkTheme = darkMode.value
+                    darkTheme = darkMode.value,
+                    repository = repository,
+                    currentConversationId = appState.currentConversationId // 添加当前对话ID参数
                 )
             }
         }

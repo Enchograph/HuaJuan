@@ -47,16 +47,45 @@ class ModelDataProvider(private val repository: Repository) {
     fun getAllServiceProviders(): List<String> {
         val predefined = Companion.predefinedServiceProviders.keys.toList()
         val custom = repository.getCustomServiceProviders().toList()
-        val allProviders = (predefined + custom).sorted() // 排序确保一致性
+        // 合并列表
+        var allProviders = (predefined + custom).distinct()
+        // 如果包含“应用试用”，将其移动到列表首位
+        if (allProviders.contains("应用试用")) {
+            allProviders = listOf("应用试用") + allProviders.filter { it != "应用试用" }
+        } else {
+            // 保持原有的排序一致性（按名称排序）
+            allProviders = allProviders.sorted()
+        }
         println("获取到所有服务提供商列表，共 ${allProviders.size} 个: $allProviders")
         return allProviders
     }
 
     companion object {
         val predefinedServiceProviders = mapOf(
+            "应用试用" to ServiceProviderInfo(
+                "应用试用",
+                "https://ai.soruxgpt.com/v1/chat/completions/",
+                listOf(
+                    ModelInfo("ChatGPT-4o", "chatgpt-4o"),
+                    ModelInfo("Claude-Sonnet", "claude-sonnet"),
+                    ModelInfo("Claude-Sonnet-4-5-All", "claude-sonnet-4-5-all"),
+                    ModelInfo("DeepSeek", "deepseek"),
+                    ModelInfo("DeepSeek-Reasoner", "deepseek-reasoner"),
+                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-v3.2-exp"),
+                    ModelInfo("Net-DeepSeek-R1", "net-deepseek-r1"),
+                    ModelInfo("Gemini-2.5", "gemini-2.5"),
+                    ModelInfo("Gemini-2.5-Flash-Thinking", "gemini-2.5-flash-thinking"),
+                    ModelInfo("Gemini-2.5-Pro-Thinking", "gemini-2.5-pro-thinking"),
+                    ModelInfo("Gemini-3", "gemini-3"),
+                    ModelInfo("Gemini-3-Pro-Preview-Thinking", "gemini-3-pro-preview-thinking"),
+                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo"),
+//                    ModelInfo("Qwen3-0.6B-MNN", "mistral-7b-instruct"),
+//                    ModelInfo("MobileLLM-125M-MNN", "qwen-72b")
+                )
+            ),
             "硅基流动" to ServiceProviderInfo(
                 "硅基流动",
-                "https://api.siliconflow.cn/v1",
+                "https://api.siliconflow.cn/v1/chat/completions/",
                 listOf(
                     ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2"),
                     ModelInfo("DeepSeek-V3.1-Terminus", "deepseek-ai/DeepSeek-V3.1-Terminus"),
@@ -90,7 +119,7 @@ class ModelDataProvider(private val repository: Repository) {
             ),
             "火山引擎" to ServiceProviderInfo(
                 "火山引擎",
-                "https://ark.cn-beijing.volces.com/api/v3",
+                "https://ark.cn-beijing.volces.com/api/v3/chat/completions/",
                 listOf(
                     ModelInfo("Seedream 4.5", "Doubao-Seedream-4.5"),
                     ModelInfo("Seedream 4.0", "Doubao-Seedream-4.0"),
@@ -105,7 +134,7 @@ class ModelDataProvider(private val repository: Repository) {
             ),
             "SoruxGPT" to ServiceProviderInfo(
                 "SoruxGPT",
-                "https://ai.soruxgpt.com/v1",
+                "https://ai.soruxgpt.com/v1/chat/completions/",
                 listOf(
                     ModelInfo("ChatGPT-4o", "chatgpt-4o"),
                     ModelInfo("Claude-Sonnet", "claude-sonnet"),

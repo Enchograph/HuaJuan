@@ -20,7 +20,9 @@ data class Conversation(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
     val lastMessage: String,
-    val timestamp: Date
+    val timestamp: Date,
+    val roleName: String = "默认助手",
+    val systemPrompt: String = "你是一个AI助手"
 )
 
 data class LocalModel(

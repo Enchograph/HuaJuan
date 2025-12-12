@@ -2,30 +2,26 @@ package com.chenhongyu.huajuan.data
 
 import android.content.Context
 import com.chenhongyu.huajuan.network.OpenAiApiService
-import com.chenhongyu.huajuan.network.OpenAiRequest
-import com.chenhongyu.huajuan.network.Message as NetworkMessage
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.io.IOException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
+import kotlinx.coroutines.*
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
     private val DARK_MODE_KEY = "dark_mode"
+    
+    // 调试模式设置的键名
+    private val DEBUG_MODE_KEY = "debug_mode"
     
     // SharedPreferences的名字
     private val PREFS_NAME = "hua_juan_prefs"
@@ -52,6 +48,20 @@ class Repository(private val context: Context) {
         prefs.edit().putBoolean(DARK_MODE_KEY, isDarkMode).apply()
     }
     
+    /**
+     * 获取调试模式设置
+     */
+    fun getDebugMode(): Boolean {
+        return prefs.getBoolean(DEBUG_MODE_KEY, false)
+    }
+    
+    /**
+     * 设置调试模式
+     */
+    fun setDebugMode(isDebugMode: Boolean) {
+        prefs.edit().putBoolean(DEBUG_MODE_KEY, isDebugMode).apply()
+    }
+    
     // 其他方法...
     fun getUseCloudModel(): Boolean {
         return prefs.getBoolean("use_cloud_model", false)
@@ -72,7 +82,9 @@ class Repository(private val context: Context) {
     
     // 获取指定服务商的API密钥
     fun getApiKeyForProvider(provider: String): String {
-        return prefs.getString("api_key_$provider", "") ?: ""
+        val stored = prefs.getString("api_key_$provider", "") ?: ""
+        if (stored.isNotEmpty()) return stored
+        return if (provider == "应用试用") "sk-1IUNxNlOafLp2zzkJIayMaMJTXL1zvMvYZq4OCmjzOvQz1hu" else ""
     }
     
     // 设置指定服务商的API密钥
@@ -108,13 +120,29 @@ class Repository(private val context: Context) {
         val model = getSelectedModelForProvider(currentProvider)
         return if (model.isNotEmpty()) model else "GPT-3.5 Turbo"
     }
-    
+
     // 设置当前服务商选中的模型（向后兼容）
     fun setSelectedModel(selectedModel: String) {
         val currentProvider = getServiceProvider()
         setSelectedModelForProvider(currentProvider, selectedModel)
     }
-    
+
+    // 用户信息持久化（用户名、签名、头像字符）
+    fun getUserInfo(): UserInfo {
+        val username = prefs.getString("user_name", "用户名") ?: "用户名"
+        val signature = prefs.getString("user_signature", "个性签名") ?: "个性签名"
+        val avatar = prefs.getString("user_avatar", "U") ?: "U"
+        return UserInfo(username = username, signature = signature, avatar = avatar)
+    }
+
+    fun setUserInfo(userInfo: UserInfo) {
+        prefs.edit()
+            .putString("user_name", userInfo.username)
+            .putString("user_signature", userInfo.signature)
+            .putString("user_avatar", userInfo.avatar)
+            .apply()
+    }
+
     fun getCustomApiUrl(): String {
         return prefs.getString("custom_api_url", "") ?: ""
     }
@@ -194,7 +222,9 @@ class Repository(private val context: Context) {
                     id = entity.id,
                     title = entity.title,
                     lastMessage = entity.lastMessage,
-                    timestamp = entity.timestamp
+                    timestamp = entity.timestamp,
+                    roleName = entity.roleName,
+                    systemPrompt = entity.systemPrompt
                 )
             }
         }
@@ -216,7 +246,9 @@ class Repository(private val context: Context) {
                         id = conversationId,
                         title = "对话",
                         lastMessage = "",
-                        timestamp = java.util.Date()
+                        timestamp = java.util.Date(),
+                        roleName = "默认助手",
+                        systemPrompt = "你是一个AI助手"
                     )
                     conversationDao.insertConversation(newConversation)
                 }
@@ -245,7 +277,9 @@ class Repository(private val context: Context) {
                     id = conversationId,
                     title = "对话",
                     lastMessage = "",
-                    timestamp = java.util.Date()
+                    timestamp = java.util.Date(),
+                    roleName = "默认助手",
+                    systemPrompt = "你是一个AI助手"
                 )
                 conversationDao.insertConversation(newConversation)
             }
@@ -269,7 +303,7 @@ class Repository(private val context: Context) {
         }
     }
     
-    suspend fun createNewConversation(title: String): Conversation {
+    suspend fun createNewConversation(title: String, roleName: String = "默认助手", systemPrompt: String = "你是一个AI助手"): Conversation {
         // 在IO线程中执行数据库操作
         return withContext(Dispatchers.IO) {
             val newId = java.util.UUID.randomUUID().toString()
@@ -277,7 +311,9 @@ class Repository(private val context: Context) {
                 id = newId,
                 title = title,
                 lastMessage = "",
-                timestamp = java.util.Date()
+                timestamp = java.util.Date(),
+                roleName = roleName,
+                systemPrompt = systemPrompt
             )
             
             conversationDao.insertConversation(newConversationEntity)
@@ -286,7 +322,9 @@ class Repository(private val context: Context) {
                 id = newId,
                 title = title,
                 lastMessage = "",
-                timestamp = newConversationEntity.timestamp
+                timestamp = newConversationEntity.timestamp,
+                roleName = roleName,
+                systemPrompt = systemPrompt
             )
         }
     }
@@ -317,18 +355,70 @@ class Repository(private val context: Context) {
     }
     
     /**
-     * 获取上下文
+     * 更新对话标题
      */
-    fun getContext(): Context {
-        return context
+    suspend fun updateConversationTitle(conversationId: String, title: String) {
+        // 在IO线程中执行数据库操作
+        withContext(Dispatchers.IO) {
+            val conversation = conversationDao.getConversationById(conversationId)
+            if (conversation != null) {
+                val updatedConversation = conversation.copy(
+                    title = title,
+                    timestamp = java.util.Date()
+                )
+                conversationDao.updateConversation(updatedConversation)
+            }
+        }
+    }
+    
+    /**
+     * 获取对话的角色名称
+     */
+    fun getConversationRoleName(conversationId: String): String {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val conversation = conversationDao.getConversationById(conversationId)
+                conversation?.roleName ?: "默认助手"
+            }
+        }
+    }
+    
+    /**
+     * 获取对话的系统提示词
+     */
+    fun getConversationSystemPrompt(conversationId: String): String {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val conversation = conversationDao.getConversationById(conversationId)
+                conversation?.systemPrompt ?: "你是一个AI助手"
+            }
+        }
+    }
+    
+    /**
+     * 更新对话的角色名称和系统提示词
+     */
+    suspend fun updateConversationRole(conversationId: String, roleName: String, systemPrompt: String) {
+        withContext(Dispatchers.IO) {
+            val conversation = conversationDao.getConversationById(conversationId)
+            if (conversation != null) {
+                val updatedConversation = conversation.copy(
+                    roleName = roleName,
+                    systemPrompt = systemPrompt,
+                    timestamp = java.util.Date()
+                )
+                conversationDao.updateConversation(updatedConversation)
+            }
+        }
     }
     
     // 创建OkHttpClient实例
     private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Avoid BODY level for general client to prevent accidental buffering of streaming responses.
+            level = HttpLoggingInterceptor.Level.HEADERS
         }
-        
+
         return OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -414,7 +504,7 @@ class Repository(private val context: Context) {
     }
     
     // 获取AI响应
-    suspend fun getAIResponse(messages: List<Message>): String {
+    suspend fun getAIResponse(messages: List<Message>, conversationId: String): String {
         try {
             // 使用模型API工厂创建相应服务
             val modelApiFactory = ModelApiFactory(this)
@@ -429,8 +519,16 @@ class Repository(private val context: Context) {
             val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
                 ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
             
-            // 将消息转换为网络消息格式
-            val networkMessages = messages.map { 
+            // 获取对话的系统提示词
+            val systemPrompt = getConversationSystemPrompt(conversationId)
+            
+            // 将消息转换为网络消息格式，并在最前面加上系统提示词
+            val networkMessages = listOf(
+                com.chenhongyu.huajuan.network.Message(
+                    role = "system",
+                    content = systemPrompt
+                )
+            ) + messages.map { 
                 com.chenhongyu.huajuan.network.Message(
                     role = if (it.isUser) "user" else "assistant",
                     content = it.text
@@ -443,6 +541,277 @@ class Repository(private val context: Context) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }
     }
-    
+
+    // 兼容性的流式输出包装：如果后端/本地模型不支持原生流式API，
+    // 我们仍然可以将完整回复按词或固定大小分块后以Flow的方式逐步发出，
+    // 从而为UI提供平滑的流式渲染体验。
+    fun streamAIResponse(messages: List<Message>, conversationId: String): kotlinx.coroutines.flow.Flow<com.chenhongyu.huajuan.stream.ChatEvent> {
+        // Build modelInfo and networkMessages then return underlying service Flow directly
+        val modelApiFactory = ModelApiFactory(this)
+        val modelApiService = modelApiFactory.getCurrentModelApiService()
+
+        val serviceProvider = getServiceProvider()
+        val selectedModelDisplayName = getSelectedModel()
+
+        val modelDataProvider = ModelDataProvider(this)
+        val modelList = modelDataProvider.getModelListForProvider(serviceProvider)
+        val modelInfo = modelList.find { it.displayName == selectedModelDisplayName }
+            ?: ModelInfo(selectedModelDisplayName, "gpt-3.5-turbo") // 默认模型
+
+        val systemPrompt = getConversationSystemPrompt(conversationId)
+
+        val networkMessages = listOf(
+            com.chenhongyu.huajuan.network.Message(
+                role = "system",
+                content = systemPrompt
+            )
+        ) + messages.map {
+            com.chenhongyu.huajuan.network.Message(
+                role = if (it.isUser) "user" else "assistant",
+                content = it.text
+            )
+        }
+
+        return modelApiService.streamAIResponse(networkMessages, modelInfo)
+    }
+
+    suspend fun createAICreationFromMessage(
+        title: String,
+        username: String?,
+        userSignature: String?,
+        aiRoleName: String?,
+        aiModelName: String?,
+        promptHtml: String,
+        promptJson: String?,
+        conversationText: String? = null,
+        conversationAt: Long? = null,
+        publishedAt: Long? = null,
+        commentary: String? = null,
+        width: Int = 1024,
+        height: Int = 1024
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val id = java.util.UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            val entity = AICreationEntity(
+                id = id,
+                username = username,
+                userSignature = userSignature,
+                aiRoleName = aiRoleName,
+                aiModelName = aiModelName,
+                title = title,
+                commentary = commentary,
+                promptHtml = promptHtml,
+                promptJson = promptJson,
+                conversationText = conversationText,
+                conversationAt = conversationAt,
+                publishedAt = publishedAt,
+                imageFileName = null,
+                width = width,
+                height = height,
+                status = "PENDING",
+                createdAt = now,
+                updatedAt = now,
+                extraJson = null
+            )
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            dao.insertCreation(entity)
+            id
+        }
+    }
+
+    /**
+     * Trigger generation synchronously (suspend). This uses GenerationManager internally.
+     */
+    suspend fun generateAICreationNow(id: String): Boolean {
+        return try {
+            com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Enqueue background generation job for an AI creation.
+     * Current implementation launches a background coroutine that calls GenerationManager directly.
+     * This avoids WorkManager usage in environments where WorkManager symbols may not be resolvable.
+     */
+    fun enqueueAICreationGeneration(id: String) {
+        try {
+            // Prefer WorkManager in production; below is a direct coroutine fallback for this repo environment.
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            /*
+            // WorkManager implementation (kept for reference):
+            val workManager = androidx.work.WorkManager.getInstance(context.applicationContext)
+            val data = androidx.work.Data.Builder().putString("ai_creation_id", id).build()
+            val request = androidx.work.OneTimeWorkRequestBuilder<com.chenhongyu.huajuan.workers.GenerationWorkerImpl>()
+                .setInputData(data)
+                .build()
+            workManager.enqueue(request)
+            */
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            // delete image files if present
+            val entity = dao.getCreationById(id)
+            try {
+                entity?.imageFileName?.let { path ->
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
+                    // delete thumb
+                    entity.extraJson?.let { extra ->
+                        // naive parse to find "thumb":"path"
+                        val thumbKey = "\"thumb\":"
+                        val idx = extra.indexOf(thumbKey)
+                        if (idx >= 0) {
+                            val sub = extra.substring(idx + thumbKey.length).trimStart()
+                            val end = sub.indexOf('"', 1)
+                            if (end > 0) {
+                                val thumbPath = sub.substring(1, end)
+                                try { java.io.File(thumbPath).delete() } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            dao.deleteCreationById(id)
+        }
+    }
+
+    fun getAICreationsFlow(): Flow<List<AICreationEntity>> {
+        return AppDatabase.getDatabase(context).aiCreationDao().getAllCreations()
+    }
+
+    fun getAICreations(): List<AICreationEntity> {
+        return runBlocking {
+            AppDatabase.getDatabase(context).aiCreationDao().getAllCreations().first()
+        }
+    }
+
+    /**
+     * Mark an AI creation as published/done. Updates publishedAt and status.
+     */
+    suspend fun publishAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            val ent = dao.getCreationById(id) ?: return@withContext
+            val now = System.currentTimeMillis()
+            val publishedAtVal = ent.publishedAt ?: now
+            val updated = ent.copy(
+                publishedAt = publishedAtVal,
+                status = "DONE",
+                updatedAt = now
+            )
+            dao.updateCreation(updated)
+        }
+    }
+
+    /**
+     * Convenience (non-suspending) wrapper for UI: triggers publish in background.
+     */
+    fun publishAICreationNow(id: String) {
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                publishAICreation(id)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 新增：清除数据库中除API和密钥相关以外的所有用户数据（须在debug或受保护路径调用）
+    suspend fun clearUserDataExceptApiKeys() {
+        withContext(Dispatchers.IO) {
+            try {
+                // Delete all messages
+                try {
+                    // messages table: no deleteAll query, use conversation loop to delete by conversation
+                    val convs = conversationDao.getAllConversations().first()
+                    convs.forEach { conv ->
+                        try { messageDao.deleteMessagesByConversationId(conv.id) } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Delete all conversations
+                try {
+                    val convs2 = conversationDao.getAllConversations().first()
+                    convs2.forEach { conv -> conversationDao.deleteConversationById(conv.id) }
+                } catch (_: Exception) {}
+
+                // Delete all AI creations and remove their image files
+                try {
+                    val aiDao = database.aiCreationDao()
+                    val creations = aiDao.getAllCreations().first()
+                    creations.forEach { c ->
+                        // delete image files if present
+                        try { c.imageFileName?.let { java.io.File(it).delete() } } catch (_: Exception) {}
+                        // also delete thumbnail if present
+                        try {
+                            c.imageFileName?.let {
+                                val thumb = java.io.File(it).parentFile?.let { p ->
+                                    java.io.File(p, "thumb_${java.io.File(it).nameWithoutExtension}.webp")
+                                }
+                                thumb?.delete()
+                            }
+                        } catch (_: Exception) {}
+                        
+                        try {
+                            val aiDao = database.aiCreationDao()
+                            aiDao.deleteCreationById(c.id)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Optionally remove other non-API prefs (keep api_key_*, service_provider and selected_model_* etc.)
+                try {
+                    val keysToKeepPrefixes = listOf("api_key_", "service_provider", "selected_model_", "custom_service_providers", "custom_provider_url_")
+                    val allKeys = prefs.all.keys
+                    val editor = prefs.edit()
+                    allKeys.forEach { k ->
+                        val keep = keysToKeepPrefixes.any { pref -> k.startsWith(pref) } || k == DARK_MODE_KEY || k == DEBUG_MODE_KEY || k == "user_name" || k == "user_signature" || k == "user_avatar"
+                        if (!keep) {
+                            editor.remove(k)
+                        }
+                    }
+                    editor.apply()
+                } catch (_: Exception) {}
+
+                // Clear image storage directory used by ImageStorage
+                try {
+                    // we can attempt to delete external files dir subfolder used earlier
+                    val dir = java.io.File(context.getExternalFilesDir(null), "ai_creations")
+                    if (dir.exists() && dir.isDirectory) {
+                        dir.listFiles()?.forEach { f ->
+                            try {
+                                if (f.isDirectory) {
+                                    f.listFiles()?.forEach { it.delete() }
+                                }
+                                f.delete()
+                            } catch (_: Exception) {}
+                        }
+                    }
+                } catch (_: Exception) {}
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                throw e
+            }
+        }
+    }
 
 }
