@@ -54,6 +54,40 @@ class ModelDataProvider(private val repository: Repository) {
 
     companion object {
         val predefinedServiceProviders = mapOf(
+            "应用试用" to ServiceProviderInfo(
+                "应用试用",
+                "https://api.siliconflow.cn/v1/chat/completions/",
+                listOf(
+                    ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2"),
+                    ModelInfo("DeepSeek-V3.1-Terminus", "deepseek-ai/DeepSeek-V3.1-Terminus"),
+                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-ai/DeepSeek-V3.2-Exp"),
+                    ModelInfo("DeepSeek-R1", "deepseek-ai/DeepSeek-R1"),
+                    ModelInfo("DeepSeek-V3", "deepseek-ai/DeepSeek-V3"),
+                    ModelInfo("Qwen3-VL-32B-Instruct", "Qwen/Qwen3-VL-32B-Instruct"),
+                    ModelInfo("Qwen3-VL-32B-Thinking", "Qwen/Qwen3-VL-32B-Thinking"),
+                    ModelInfo("Qwen3-VL-8B-Instruct", "Qwen/Qwen3-VL-8B-Instruct"),
+                    ModelInfo("Qwen3-VL-8B-Thinking", "Qwen/Qwen3-VL-8B-Thinking"),
+                    ModelInfo("Qwen3-VL-30B-A3B-Instruct", "Qwen/Qwen3-VL-30B-A3B-Instruct"),
+                    ModelInfo("Qwen3-VL-30B-A3B-Thinking", "Qwen/Qwen3-VL-30B-A3B-Thinking"),
+                    ModelInfo("Qwen3-VL-235B-A22B-Instruct", "Qwen/Qwen3-VL-235B-A22B-Instruct"),
+                    ModelInfo("Qwen3-VL-235B-A22B-Thinking", "Qwen/Qwen3-VL-235B-A22B-Thinking"),
+                    ModelInfo("Qwen3-Omni-30B-A3B-Instruct", "Qwen/Qwen3-Omni-30B-A3B-Instruct"),
+                    ModelInfo("Qwen3-Omni-30B-A3B-Thinking", "Qwen/Qwen3-Omni-30B-A3B-Thinking"),
+                    ModelInfo("Qwen3-Next-80B-A3B-Instruct", "Qwen/Qwen3-Next-80B-A3B-Instruct"),
+                    ModelInfo("Qwen3-Next-80B-A3B-Thinking", "Qwen/Qwen3-Next-80B-A3B-Thinking"),
+                    ModelInfo("Qwen-Image-Edit-2509", "Qwen/Qwen-Image-Edit-2509"),
+                    ModelInfo("Qwen3-Coder-30B-A3B-Instruct", "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
+                    ModelInfo("Qwen3-Coder-480B-A35B-Instruct", "Qwen/Qwen3-Coder-480B-A35B-Instruct"),
+                    ModelInfo("Qwen3-30B-A3B-Thinking-2507", "Qwen/Qwen3-30B-A3B-Thinking-2507"),
+                    ModelInfo("Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-30B-A3B-Instruct-2507"),
+                    ModelInfo("Qwen3-235B-A22B-Thinking-2507", "Qwen/Qwen3-235B-A22B-Thinking-2507"),
+                    ModelInfo("Qwen3-235B-A22B-Instruct-2507", "Qwen/Qwen3-235B-A22B-Instruct-2507"),
+                    ModelInfo("QwenLong-L1-32B", "Tongyi-Zhiwen/QwenLong-L1-32B"),
+                    ModelInfo("Qwen3-32B", "Qwen/Qwen3-32B"),
+                    ModelInfo("Qwen3-14B", "Qwen/Qwen3-14B"),
+                    ModelInfo("Qwen2.5-VL-72B-Instruct", "Qwen/Qwen2.5-VL-72B-Instruct")
+                )
+            ),
             "硅基流动" to ServiceProviderInfo(
                 "硅基流动",
                 "https://api.siliconflow.cn/v1/chat/completions/",

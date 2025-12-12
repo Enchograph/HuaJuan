@@ -268,7 +268,15 @@ fun SideDrawer(
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         println("选择了花卷聊天")
-                                        onChatPageSelected("default") // 使用"default"表示默认对话
+                                        // 创建新的对话而不是使用"default"
+                                        scope.launch {
+                                            val newConversation = repository.createNewConversation(
+                                                title = "新对话",
+                                                roleName = "默认助手",
+                                                systemPrompt = "你是一个AI助手"
+                                            )
+                                            onChatPageSelected(newConversation.id)
+                                        }
                                     }
                             )
 
