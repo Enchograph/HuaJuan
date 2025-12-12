@@ -172,12 +172,22 @@ fun AICreationCard(item: AICreationEntity, onClick: () -> Unit) {
                 }
             }
 
-            // 信息栏：单行，左侧用户名，右侧生成日期
+            // 信息栏：单行，左侧帖子标题，右侧生成日期
             Row(modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = item.username ?: "匿名", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = formatTime(java.util.Date(item.createdAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    text = item.title ?: (item.aiRoleName ?: "无标题"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = formatTime(java.util.Date(item.createdAt)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
