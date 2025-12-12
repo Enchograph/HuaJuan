@@ -4,7 +4,6 @@ package com.chenhongyu.huajuan
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -26,12 +24,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import java.util.Date
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -47,10 +46,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlinx.coroutines.delay
 import com.chenhongyu.huajuan.ui.theme.HuaJuanTheme
 import androidx.compose.ui.window.Dialog
 import com.chenhongyu.huajuan.data.Message
@@ -67,25 +62,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.derivedStateOf
 
-fun formatTime(date: Date): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    return sdf.format(date)
-}
-
-fun formatConversationTime(date: Date): String {
-    val now = Date()
-    val diff = now.time - date.time
-    val minutes = diff / 60000
-    val hours = diff / 3600000
-    val days = diff / 86400000
-    
-    return when {
-        days > 0 -> "${days}天前"
-        hours > 0 -> "${hours}小时前"
-        minutes > 0 -> "${minutes}分钟前"
-        else -> "刚刚"
-    }
-}
 
 /**
  * 聊天界面
@@ -100,6 +76,8 @@ fun ChatScreen(
 ) {
     println("DEBUG: ChatScreen recomposed with currentConversationId: ${appState.currentConversationId}")
     val scope = rememberCoroutineScope()
+    // Editor state: when non-null, show the AI creation editor for that message
+    var editorMessage by remember { mutableStateOf<com.chenhongyu.huajuan.data.Message?>(null) }
     var isExpanded by remember { mutableStateOf(false) }
     // 移除对appState.currentConversationId的依赖，避免重组时的过渡动画
     var chatState by remember { 
@@ -181,7 +159,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            text = "花卷 - $roleName",
+                            text = roleName,
                             fontWeight = FontWeight.Bold
                         )
                         if (repository.getDebugMode()) {
@@ -422,31 +400,33 @@ fun ChatScreen(
              repository = repository,
              systemPrompt = systemPrompt,
              listState = listState,
+             conversationId = appState.currentConversationId,
              modifier = Modifier
                  .padding(paddingValues)
-                 .fillMaxSize()
+                 .fillMaxSize(),
+             onOpenEditor = { msg -> editorMessage = msg }
          )
      }
 
     // Small overlay: when new chunks arrive while user scrolled up, show a small indicator
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (pendingNewChunks > 0) {
-            FloatingActionButton(
-                onClick = {
-                    // scroll to bottom
-                    scope.launch {
-                        listState.animateScrollToItem(max(0, chatState.messages.size - 1))
-                        pendingNewChunks = 0
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Text("新消息")
-            }
-        }
-    }
+//    Box(modifier = Modifier.fillMaxSize()) {
+//        if (pendingNewChunks > 0) {
+//            FloatingActionButton(
+//                onClick = {
+//                    // scroll to bottom
+//                    scope.launch {
+//                        listState.animateScrollToItem(max(0, chatState.messages.size - 1))
+//                        pendingNewChunks = 0
+//                    }
+//                },
+//                modifier = Modifier
+//                    .align(Alignment.BottomEnd)
+//                    .padding(16.dp)
+//            ) {
+//                Text("新消息")
+//            }
+//        }
+//    }
 
     // 编辑系统提示词对话框
     if (showEditPromptDialog) {
@@ -505,6 +485,25 @@ fun ChatScreen(
             }
         )
     }
+
+    // AI 创作编辑器覆盖页（当用户点击收藏并要发布时）
+    if (editorMessage != null) {
+        val msg = editorMessage!!
+        AICreationEditor(
+            message = msg,
+            repository = repository,
+            conversationId = appState.currentConversationId ?: "default",
+            onDismiss = { editorMessage = null },
+            onPublished = { id ->
+                editorMessage = null
+                scope.launch {
+                    Toast.makeText(context, "已发布到 AI 创作", Toast.LENGTH_SHORT).show()
+                }
+            },
+            conversationMessages = chatState.messages,
+            conversationAt = chatState.messages.firstOrNull()?.timestamp?.time
+        )
+    }
 }
 
 /**
@@ -516,7 +515,9 @@ fun ChatContentArea(
     repository: Repository,
     systemPrompt: String,
     listState: LazyListState,
-    modifier: Modifier = Modifier
+    conversationId: String?,
+    modifier: Modifier = Modifier,
+    onOpenEditor: ((Message) -> Unit)? = null
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
     val scope = rememberCoroutineScope()
@@ -682,39 +683,43 @@ fun ChatContentArea(
                             onClick = { 
                                 isFavorited = !isFavorited
                                 if (isFavorited) {
-                                    Toast.makeText(context, "已收藏该回复", Toast.LENGTH_SHORT).show()
+                                    // request parent to open editor dialog
+                                    onOpenEditor?.invoke(message)
                                 } else {
                                     Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
                                 }
-                                println("${if (isFavorited) "已收藏" else "取消收藏"}消息")
+                                println("${if (isFavorited) "触发创建编辑" else "取消收藏"}消息")
                             },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(
-                                    if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant 
-                                    else MaterialTheme.colorScheme.surface,
-                                    CircleShape
-                                )
-                        ) {
-                            Icon(
-                                imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
-                                contentDescription = "收藏",
-                                tint = if (isFavorited) MaterialTheme.colorScheme.primary 
-                                      else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = formatTime(message.timestamp),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .padding(end = 60.dp)
-                    )
-                }
-            } else {
+                             modifier = Modifier
+                                 .size(36.dp)
+                                 .background(
+                                     if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant
+                                     else MaterialTheme.colorScheme.surface,
+                                     CircleShape
+                                 )
+                         ) {
+                             Icon(
+                                 imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Outlined.Favorite,
+                                 contentDescription = "收藏",
+                                 tint = if (isFavorited) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                             )
+                         }
+                     }
+
+                     Text(
+                         text = formatTime(message.timestamp),
+                         fontSize = 12.sp,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                         modifier = Modifier
+                             .padding(top = 8.dp)
+                             .padding(end = 60.dp)
+                     )
+                 }
+
+                // Render global editor overlay if set (we use a remember in outer scope to manage showing the editor)
+                // We'll declare separate state outside the items loop to avoid re-creating; check below for implementation.
+             } else {
                 // 用户发送气泡
                 Column(
                     modifier = Modifier.fillMaxWidth(),

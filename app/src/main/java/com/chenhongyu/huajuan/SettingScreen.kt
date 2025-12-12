@@ -80,7 +80,9 @@ fun SettingScreen(
     var debugMode by remember { mutableStateOf<Boolean>(repository.getDebugMode()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+    // 本地模型选中状态（仅在 useCloudModel = false 时使用）
+    var localSelectedModel by remember { mutableStateOf("Qwen3-0.6B-MNN") }
+
     // 添加调试输出
     LaunchedEffect(serviceProvider) {
         println("当前选中的服务提供商: $serviceProvider")
@@ -311,7 +313,8 @@ fun SettingScreen(
                         
                         if (debugMode) {
                             Spacer(Modifier.height(16.dp))
-                            
+                            var showClearConfirm by remember { mutableStateOf(false) }
+
                             // 清空对话数据库按钮
                             Button(
                                 onClick = {
@@ -340,7 +343,46 @@ fun SettingScreen(
                             ) {
                                 Text("清空对话数据库")
                             }
-                            
+
+                            // 新增：删除数据库但保留API/密钥
+                            Button(
+                                onClick = { showClearConfirm = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Text("删除数据库（保留 API 与密钥）")
+                            }
+
+                            if (showClearConfirm) {
+                                AlertDialog(
+                                    onDismissRequest = { showClearConfirm = false },
+                                    title = { Text("确认删除数据库") },
+                                    text = { Text("该操作会删除除 API/密钥 之外的所有本地数据，无法恢复。确定继续吗？") },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            showClearConfirm = false
+                                            scope.launch {
+                                                try {
+                                                    repository.clearUserDataExceptApiKeys()
+                                                    Toast.makeText(context, "已删除本地数据（保留 API & 密钥）", Toast.LENGTH_SHORT).show()
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }) { Text("确认") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showClearConfirm = false }) { Text("取消") }
+                                    }
+                                )
+                            }
+
                             // 一键新建一百条对话按钮
                             Button(
                                 onClick = {
@@ -465,56 +507,66 @@ fun SettingScreen(
                                 )
                                 
                                 var passwordVisibility by remember { mutableStateOf(false) }
-                                
-                                OutlinedTextField(
-                                    value = apiKey,
-                                    onValueChange = { 
-                                        apiKey = it
-                                        repository.setApiKeyForProvider(serviceProvider, it)
-                                    },
-                                    label = { Text("API密钥") },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    visualTransformation = if (passwordVisibility) {
-                                        androidx.compose.ui.text.input.VisualTransformation.None
-                                    } else {
-                                        androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                    },
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
-                                    ),
-                                    trailingIcon = {
-                                        val image = if (passwordVisibility) {
-                                            Icons.Filled.Visibility
+
+                                // 如果当前服务提供商是 应用试用，则不在前端展示密钥输入框（密钥由代码写死）
+                                if (serviceProvider != "应用试用") {
+                                    OutlinedTextField(
+                                        value = apiKey,
+                                        onValueChange = {
+                                            apiKey = it
+                                            repository.setApiKeyForProvider(serviceProvider, it)
+                                        },
+                                        label = { Text("API密钥") },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 16.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        visualTransformation = if (passwordVisibility) {
+                                            androidx.compose.ui.text.input.VisualTransformation.None
                                         } else {
-                                            Icons.Filled.VisibilityOff
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                        ),
+                                        trailingIcon = {
+                                            val image = if (passwordVisibility) {
+                                                Icons.Filled.Visibility
+                                            } else {
+                                                Icons.Filled.VisibilityOff
+                                            }
+
+                                            IconButton(onClick = {
+                                                passwordVisibility = !passwordVisibility
+                                            }) {
+                                                Icon(
+                                                    imageVector = image,
+                                                    contentDescription = if (passwordVisibility) {
+                                                        "隐藏密码"
+                                                    } else {
+                                                        "显示密码"
+                                                    }
+                                                )
+                                            }
                                         }
-                                        
-                                        IconButton(onClick = {
-                                            passwordVisibility = !passwordVisibility
-                                        }) {
-                                            Icon(
-                                                imageVector = image,
-                                                contentDescription = if (passwordVisibility) {
-                                                    "隐藏密码"
-                                                } else {
-                                                    "显示密码"
-                                                }
-                                            )
-                                        }
-                                    }
-                                )
-                                
+                                    )
+                                } else {
+                                    Text(
+                                        text = "使用内置的应用试用密钥",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 16.dp)
+                                    )
+                                }
+
                                 ModelSelector(
                                     serviceProvider = serviceProvider,
                                     selectedModel = selectedModel,
@@ -575,7 +627,7 @@ fun SettingScreen(
                                     ListItem(
                                         headlineContent = { 
                                             Text(
-                                                text = "Qwen 7B",
+                                                text = "Qwen3-0.6B-MNN",
                                                 color = MaterialTheme.colorScheme.onSurface
                                             ) 
                                         },
@@ -587,10 +639,10 @@ fun SettingScreen(
                                         },
                                         trailingContent = {
                                             RadioButton(
-                                                selected = true,
-                                                onClick = { 
-                                                    /* 选择模型 */
-                                                    println("选择了Qwen 7B模型")
+                                                selected = localSelectedModel == "Qwen3-0.6B-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "Qwen3-0.6B-MNN"
+                                                    println("选择了Qwen3-0.6B-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
                                                     selectedColor = MaterialTheme.colorScheme.primary,
@@ -612,7 +664,7 @@ fun SettingScreen(
                                     ListItem(
                                         headlineContent = { 
                                             Text(
-                                                text = "Llama 2 7B",
+                                                text = "MobileLLM-125M-MNN",
                                                 color = MaterialTheme.colorScheme.onSurface
                                             ) 
                                         },
@@ -624,10 +676,10 @@ fun SettingScreen(
                                         },
                                         trailingContent = {
                                             RadioButton(
-                                                selected = false,
-                                                onClick = { 
-                                                    /* 选择模型 */
-                                                    println("选择了Llama 2 7B模型")
+                                                selected = localSelectedModel == "MobileLLM-125M-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "MobileLLM-125M-MNN"
+                                                    println("选择了MobileLLM-125M-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
                                                     selectedColor = MaterialTheme.colorScheme.primary,
@@ -643,6 +695,7 @@ fun SettingScreen(
                                     onClick = { 
                                         /* 下载新模型 */
                                         println("添加模型按钮被点击")
+                                        Toast.makeText(context, "模型广场功能正在开发中", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()

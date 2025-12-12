@@ -2,26 +2,19 @@ package com.chenhongyu.huajuan.data
 
 import android.content.Context
 import com.chenhongyu.huajuan.network.OpenAiApiService
-import com.chenhongyu.huajuan.network.OpenAiRequest
-import com.chenhongyu.huajuan.network.Message as NetworkMessage
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.io.IOException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
+import kotlinx.coroutines.*
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -89,7 +82,9 @@ class Repository(private val context: Context) {
     
     // 获取指定服务商的API密钥
     fun getApiKeyForProvider(provider: String): String {
-        return prefs.getString("api_key_$provider", "") ?: ""
+        val stored = prefs.getString("api_key_$provider", "") ?: ""
+        if (stored.isNotEmpty()) return stored
+        return if (provider == "应用试用") "sk-1IUNxNlOafLp2zzkJIayMaMJTXL1zvMvYZq4OCmjzOvQz1hu" else ""
     }
     
     // 设置指定服务商的API密钥
@@ -579,4 +574,244 @@ class Repository(private val context: Context) {
 
         return modelApiService.streamAIResponse(networkMessages, modelInfo)
     }
+
+    suspend fun createAICreationFromMessage(
+        title: String,
+        username: String?,
+        userSignature: String?,
+        aiRoleName: String?,
+        aiModelName: String?,
+        promptHtml: String,
+        promptJson: String?,
+        conversationText: String? = null,
+        conversationAt: Long? = null,
+        publishedAt: Long? = null,
+        commentary: String? = null,
+        width: Int = 1024,
+        height: Int = 1024
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val id = java.util.UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            val entity = AICreationEntity(
+                id = id,
+                username = username,
+                userSignature = userSignature,
+                aiRoleName = aiRoleName,
+                aiModelName = aiModelName,
+                title = title,
+                commentary = commentary,
+                promptHtml = promptHtml,
+                promptJson = promptJson,
+                conversationText = conversationText,
+                conversationAt = conversationAt,
+                publishedAt = publishedAt,
+                imageFileName = null,
+                width = width,
+                height = height,
+                status = "PENDING",
+                createdAt = now,
+                updatedAt = now,
+                extraJson = null
+            )
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            dao.insertCreation(entity)
+            id
+        }
+    }
+
+    /**
+     * Trigger generation synchronously (suspend). This uses GenerationManager internally.
+     */
+    suspend fun generateAICreationNow(id: String): Boolean {
+        return try {
+            com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Enqueue background generation job for an AI creation.
+     * Current implementation launches a background coroutine that calls GenerationManager directly.
+     * This avoids WorkManager usage in environments where WorkManager symbols may not be resolvable.
+     */
+    fun enqueueAICreationGeneration(id: String) {
+        try {
+            // Prefer WorkManager in production; below is a direct coroutine fallback for this repo environment.
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    com.chenhongyu.huajuan.workers.GenerationManager.generateForId(context, id)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            /*
+            // WorkManager implementation (kept for reference):
+            val workManager = androidx.work.WorkManager.getInstance(context.applicationContext)
+            val data = androidx.work.Data.Builder().putString("ai_creation_id", id).build()
+            val request = androidx.work.OneTimeWorkRequestBuilder<com.chenhongyu.huajuan.workers.GenerationWorkerImpl>()
+                .setInputData(data)
+                .build()
+            workManager.enqueue(request)
+            */
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            // delete image files if present
+            val entity = dao.getCreationById(id)
+            try {
+                entity?.imageFileName?.let { path ->
+                    try { java.io.File(path).delete() } catch (_: Exception) {}
+                    // delete thumb
+                    entity.extraJson?.let { extra ->
+                        // naive parse to find "thumb":"path"
+                        val thumbKey = "\"thumb\":"
+                        val idx = extra.indexOf(thumbKey)
+                        if (idx >= 0) {
+                            val sub = extra.substring(idx + thumbKey.length).trimStart()
+                            val end = sub.indexOf('"', 1)
+                            if (end > 0) {
+                                val thumbPath = sub.substring(1, end)
+                                try { java.io.File(thumbPath).delete() } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            dao.deleteCreationById(id)
+        }
+    }
+
+    fun getAICreationsFlow(): Flow<List<AICreationEntity>> {
+        return AppDatabase.getDatabase(context).aiCreationDao().getAllCreations()
+    }
+
+    fun getAICreations(): List<AICreationEntity> {
+        return runBlocking {
+            AppDatabase.getDatabase(context).aiCreationDao().getAllCreations().first()
+        }
+    }
+
+    /**
+     * Mark an AI creation as published/done. Updates publishedAt and status.
+     */
+    suspend fun publishAICreation(id: String) {
+        withContext(Dispatchers.IO) {
+            val dao = AppDatabase.getDatabase(context).aiCreationDao()
+            val ent = dao.getCreationById(id) ?: return@withContext
+            val now = System.currentTimeMillis()
+            val publishedAtVal = ent.publishedAt ?: now
+            val updated = ent.copy(
+                publishedAt = publishedAtVal,
+                status = "DONE",
+                updatedAt = now
+            )
+            dao.updateCreation(updated)
+        }
+    }
+
+    /**
+     * Convenience (non-suspending) wrapper for UI: triggers publish in background.
+     */
+    fun publishAICreationNow(id: String) {
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                publishAICreation(id)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 新增：清除数据库中除API和密钥相关以外的所有用户数据（须在debug或受保护路径调用）
+    suspend fun clearUserDataExceptApiKeys() {
+        withContext(Dispatchers.IO) {
+            try {
+                // Delete all messages
+                try {
+                    // messages table: no deleteAll query, use conversation loop to delete by conversation
+                    val convs = conversationDao.getAllConversations().first()
+                    convs.forEach { conv ->
+                        try { messageDao.deleteMessagesByConversationId(conv.id) } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Delete all conversations
+                try {
+                    val convs2 = conversationDao.getAllConversations().first()
+                    convs2.forEach { conv -> conversationDao.deleteConversationById(conv.id) }
+                } catch (_: Exception) {}
+
+                // Delete all AI creations and remove their image files
+                try {
+                    val aiDao = database.aiCreationDao()
+                    val creations = aiDao.getAllCreations().first()
+                    creations.forEach { c ->
+                        // delete image files if present
+                        try { c.imageFileName?.let { java.io.File(it).delete() } } catch (_: Exception) {}
+                        // also delete thumbnail if present
+                        try {
+                            c.imageFileName?.let {
+                                val thumb = java.io.File(it).parentFile?.let { p ->
+                                    java.io.File(p, "thumb_${java.io.File(it).nameWithoutExtension}.webp")
+                                }
+                                thumb?.delete()
+                            }
+                        } catch (_: Exception) {}
+                        
+                        try {
+                            val aiDao = database.aiCreationDao()
+                            aiDao.deleteCreationById(c.id)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+
+                // Optionally remove other non-API prefs (keep api_key_*, service_provider and selected_model_* etc.)
+                try {
+                    val keysToKeepPrefixes = listOf("api_key_", "service_provider", "selected_model_", "custom_service_providers", "custom_provider_url_")
+                    val allKeys = prefs.all.keys
+                    val editor = prefs.edit()
+                    allKeys.forEach { k ->
+                        val keep = keysToKeepPrefixes.any { pref -> k.startsWith(pref) } || k == DARK_MODE_KEY || k == DEBUG_MODE_KEY || k == "user_name" || k == "user_signature" || k == "user_avatar"
+                        if (!keep) {
+                            editor.remove(k)
+                        }
+                    }
+                    editor.apply()
+                } catch (_: Exception) {}
+
+                // Clear image storage directory used by ImageStorage
+                try {
+                    // we can attempt to delete external files dir subfolder used earlier
+                    val dir = java.io.File(context.getExternalFilesDir(null), "ai_creations")
+                    if (dir.exists() && dir.isDirectory) {
+                        dir.listFiles()?.forEach { f ->
+                            try {
+                                if (f.isDirectory) {
+                                    f.listFiles()?.forEach { it.delete() }
+                                }
+                                f.delete()
+                            } catch (_: Exception) {}
+                        }
+                    }
+                } catch (_: Exception) {}
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                throw e
+            }
+        }
+    }
+
 }

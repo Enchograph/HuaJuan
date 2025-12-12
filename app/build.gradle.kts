@@ -71,6 +71,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.5.0")
     kapt("androidx.room:room-compiler:2.5.0")
     
+    // WorkManager for background generation
+    implementation("androidx.work:work-runtime-ktx:2.8.1")
+
     // 添加模糊效果库
     implementation("com.github.skydoves:cloudy:0.2.7")
     
