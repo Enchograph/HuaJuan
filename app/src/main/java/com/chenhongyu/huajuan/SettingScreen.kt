@@ -40,6 +40,7 @@ import com.chenhongyu.huajuan.data.Repository
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -75,7 +76,7 @@ fun SettingScreen(
                 ?: "GPT-3.5 Turbo"
         ) 
     }
-    var userInfo by remember { mutableStateOf(UserInfo()) }
+    var userInfo by remember { mutableStateOf(repository.getUserInfo()) }
     var showEditDialog by remember { mutableStateOf(false) }
     var debugMode by remember { mutableStateOf<Boolean>(repository.getDebugMode()) }
     val context = LocalContext.current
@@ -96,10 +97,21 @@ fun SettingScreen(
         println("当前选中的模型: $selectedModel")
     }
     
+    // Collect reactive user info
+    LaunchedEffect(Unit) {
+        repository.userInfoFlow.collectLatest { updated ->
+            userInfo = updated
+        }
+    }
+
     if (showEditDialog) {
         EditUserInfoDialog(
             userInfo = userInfo,
-            onUserInfoChange = { userInfo = it },
+            onUserInfoChange = {
+                userInfo = it
+                // persist to repository so others and flow update
+                repository.setUserInfo(it)
+            },
             onDismiss = { showEditDialog = false }
         )
     }

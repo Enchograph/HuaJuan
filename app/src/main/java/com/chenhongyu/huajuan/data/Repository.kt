@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import com.chenhongyu.huajuan.data.ModelDataProvider
 import com.chenhongyu.huajuan.data.ModelInfo
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class Repository(private val context: Context) {
     // 存储暗色模式设置的键名
@@ -128,6 +130,16 @@ class Repository(private val context: Context) {
     }
 
     // 用户信息持久化（用户名、签名、头像字符）
+    private val _userInfoFlow: MutableStateFlow<UserInfo> = MutableStateFlow(
+        run {
+            val username = prefs.getString("user_name", "用户名") ?: "用户名"
+            val signature = prefs.getString("user_signature", "个性签名") ?: "个性签名"
+            val avatar = prefs.getString("user_avatar", "U") ?: "U"
+            UserInfo(username = username, signature = signature, avatar = avatar)
+        }
+    )
+    val userInfoFlow: StateFlow<UserInfo> = _userInfoFlow
+
     fun getUserInfo(): UserInfo {
         val username = prefs.getString("user_name", "用户名") ?: "用户名"
         val signature = prefs.getString("user_signature", "个性签名") ?: "个性签名"
@@ -141,6 +153,8 @@ class Repository(private val context: Context) {
             .putString("user_signature", userInfo.signature)
             .putString("user_avatar", userInfo.avatar)
             .apply()
+        // update flow so UI can react
+        _userInfoFlow.value = userInfo
     }
 
     fun getCustomApiUrl(): String {
