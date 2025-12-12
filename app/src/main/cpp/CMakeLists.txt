@@ -11,6 +11,9 @@ cmake_minimum_required(VERSION 3.22.1)
 # build script scope).
 project("mnnllmapp")
 
+# Disable deprecated warnings for third-party libraries
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-literal-operator -Wno-deprecated-declarations")
+
 add_library(${CMAKE_PROJECT_NAME} SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
         llm_mnn_jni.cpp
@@ -18,6 +21,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         diffusion_session.cpp
         llm_session.cpp
         crash_util.cpp
+        local_model_jni.cpp
 )
 
 # Add 16KB page size support (required for Android 15+ devices)
@@ -151,5 +155,7 @@ set(ANDROID_SOURCE_FILES
 
 add_library(mnn_tts SHARED ${BERTVITS2_SOURCE_FILES} ${SHARED_SOURCE_FILES} ${ANDROID_SOURCE_FILES})
 
-target_link_libraries(mnn_tts log MNN)
+# Disable deprecated warnings for third-party libraries
+target_compile_options(mnn_tts PRIVATE -Wno-deprecated-literal-operator -Wno-deprecated-declarations)
 
+target_link_libraries(mnn_tts log MNN)

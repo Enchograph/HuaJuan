@@ -1,64 +1,213 @@
 package com.chenhongyu.huajuan.data
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.core.content.ContextCompat
 import com.chenhongyu.huajuan.network.Message
-import com.chenhongyu.huajuan.stream.ChatEvent
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import android.util.Pair
+import com.google.gson.Gson
+import java.util.HashMap
+import java.util.stream.Collectors
 
 /**
- * 本地模型API服务实现（代理到在线模型）
- * 将本地模型名称映射到“应用试用”服务商的云端模型，并增加调用延迟。
+ * 本地模型API服务实现
  */
 class LocalModelApiService(private val repository: Repository) : ModelApiService {
-    
+    companion object {
+        private const val TAG = "LocalModelApiService"
+        private const val MODEL_PATH = "model/notQwen3/config.json"
+        
+        init {
+            System.loadLibrary("mnnllmapp")
+        }
+    }
+
+    private var nativePtr: Long = 0
+    private var modelLoading = false
+    private var generating = false
+    private var releaseRequested = false
+    private var sessionId: String = ""
+    private var keepHistory = false
+
     override fun isAvailable(): Boolean {
-        // 本地模型改为代理网络调用，只要网络和密钥可用就认为可用
-        return true
+        // 检查assets目录中是否存在模型文件
+        return try {
+            val context = repository.getContext()
+            val assetManager = context.assets
+            assetManager.open(MODEL_PATH).use { 
+                Log.d(TAG, "Model file found in assets: $MODEL_PATH")
+                true
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Model file not found in assets: $MODEL_PATH", e)
+            false
+        }
     }
     
     override suspend fun getAIResponse(messages: List<Message>, modelInfo: ModelInfo): String {
-        // 将显示名映射到云端模型代号
-        val mappedApiCode = when (modelInfo.displayName) {
-            "Qwen3-0.6B-MNN" -> "mistral-7b-instruct"
-            "MobileLLM-125M-MNN" -> "qwen-72b"
-            else -> modelInfo.apiCode
-        }
-        // 调用前增加少许延迟
-        delay(1000)
-
-        // 暂时切换服务商到“应用试用”，调用后恢复
-        val prevProvider = repository.getServiceProvider()
-        try {
-            repository.setServiceProvider("应用试用")
-            val online = OnlineModelApiService(repository)
-            // 使用映射后的apiCode进行调用
-            return online.getAIResponse(messages, ModelInfo(modelInfo.displayName, mappedApiCode))
-        } finally {
-            repository.setServiceProvider(prevProvider)
+        return try {
+            // 初始化模型会话（如果尚未初始化）
+            if (nativePtr == 0L) {
+                initializeModelSession()
+            }
+            
+            // 等待模型加载完成
+            if (!modelLoading) {
+                loadModel()
+            }
+            
+            // 获取最新的用户消息作为提示
+            val latestUserMessage = messages.lastOrNull { it.role == "user" }?.content ?: ""
+            if (latestUserMessage.isEmpty()) {
+                return "没有找到用户输入消息"
+            }
+            
+            // 生成回复
+            generateResponse(latestUserMessage)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting AI response from local model", e)
+            "本地模型调用出错: ${e.message ?: e.javaClass.simpleName}"
         }
     }
-
-    override fun streamAIResponse(messages: List<Message>, modelInfo: ModelInfo): Flow<ChatEvent> = flow {
-        // 将显示名映射到云端模型代号
-        val mappedApiCode = when (modelInfo.displayName) {
-            "Qwen3-0.6B-MNN" -> "qwen-72b"
-            "MobileLLM-125M-MNN" -> "mistral-7b-instruct"
-            else -> modelInfo.apiCode
-        }
-        // 调用前增加少许延迟
-        delay(1000)
-
-        val prevProvider = repository.getServiceProvider()
-        try {
-            repository.setServiceProvider("应用试用")
-            val online = OnlineModelApiService(repository)
-            // 委托在线流式实现
-            online.streamAIResponse(messages, ModelInfo(modelInfo.displayName, mappedApiCode)).collect { event ->
-                emit(event)
+    
+    private suspend fun initializeModelSession() {
+        // 获取应用内部存储中的模型路径
+        val context = repository.getContext()
+        val modelPath = File(context.filesDir, MODEL_PATH).absolutePath
+        sessionId = System.currentTimeMillis().toString()
+        
+        // 加载模型配置
+        val configFile = File(modelPath)
+        val configParent = configFile.parent
+        val configFileName = configFile.name
+        
+        nativePtr = suspendCancellableCoroutine { continuation ->
+            try {
+                val ptr = initNative(
+                    modelPath,
+                    null, // history
+                    "{}", // mergedConfigStr
+                    Gson().toJson(
+                        HashMap<String, Any>().apply {
+                            put("is_r1", false)
+                            put("mmap_dir", "")
+                            put("keep_history", keepHistory)
+                        }
+                    ) // configJsonStr
+                )
+                continuation.resume(ptr)
+            } catch (e: Exception) {
+                continuation.resumeWithException(e)
             }
-        } finally {
-            repository.setServiceProvider(prevProvider)
         }
+    }
+    
+    private suspend fun loadModel() {
+        if (nativePtr == 0L) throw IllegalStateException("模型会话未初始化")
+        
+        suspendCancellableCoroutine<Unit> { continuation ->
+            Thread {
+                try {
+                    modelLoading = true
+                    // 模型已经在initializeModelSession中通过initNative加载
+                    modelLoading = false
+                    
+                    if (releaseRequested) {
+                        releaseInner()
+                    }
+                    continuation.resume(Unit)
+                } catch (e: Exception) {
+                    modelLoading = false
+                    continuation.resumeWithException(e)
+                }
+            }.start()
+        }
+    }
+    
+    private suspend fun generateResponse(prompt: String): String {
+        if (nativePtr == 0L) throw IllegalStateException("模型会话未初始化")
+        
+        return suspendCancellableCoroutine { continuation ->
+            val responseBuilder = StringBuilder()
+            
+            Thread {
+                try {
+                    val params = HashMap<String, Any>()
+                    val result = submitNative(
+                        nativePtr,
+                        prompt,
+                        keepHistory,
+                        object : GenerateProgressListener {
+                            override fun onProgress(progress: String?): Boolean {
+                                if (!progress.isNullOrEmpty()) {
+                                    responseBuilder.append(progress)
+                                }
+                                // 返回false表示继续生成
+                                return false
+                            }
+                        }
+                    )
+                    
+                    continuation.resume(responseBuilder.toString())
+                } catch (e: Exception) {
+                    continuation.resumeWithException(e)
+                }
+            }.start()
+        }
+    }
+    
+    private fun releaseInner() {
+        if (nativePtr != 0L) {
+            releaseNative(nativePtr)
+            nativePtr = 0
+        }
+    }
+    
+    fun release() {
+        synchronized(this) {
+            Log.d(
+                TAG,
+                "MNN_DEBUG release nativePtr: $nativePtr mGenerating: $generating"
+            )
+            if (!generating && !modelLoading) {
+                releaseInner()
+            } else {
+                releaseRequested = true
+                while (generating || modelLoading) {
+                    try {
+                        (this as Object).wait()
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        Log.e(TAG, "Thread interrupted while waiting for release", e)
+                    }
+                }
+                releaseInner()
+            }
+        }
+    }
+    
+    private external fun initNative(
+        configPath: String?,
+        history: List<String>?,
+        mergedConfigStr: String?,
+        configJsonStr: String?
+    ): Long
+
+    private external fun submitNative(
+        instanceId: Long,
+        input: String,
+        keepHistory: Boolean,
+        listener: GenerateProgressListener
+    ): HashMap<String, Any>
+
+    private external fun releaseNative(instanceId: Long)
+    
+    interface GenerateProgressListener {
+        fun onProgress(progress: String?): Boolean
     }
 }
