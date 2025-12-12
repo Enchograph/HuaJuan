@@ -159,7 +159,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            text = "花卷 - $roleName",
+                            text = roleName,
                             fontWeight = FontWeight.Bold
                         )
                         if (repository.getDebugMode()) {
@@ -409,24 +409,24 @@ fun ChatScreen(
      }
 
     // Small overlay: when new chunks arrive while user scrolled up, show a small indicator
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (pendingNewChunks > 0) {
-            FloatingActionButton(
-                onClick = {
-                    // scroll to bottom
-                    scope.launch {
-                        listState.animateScrollToItem(max(0, chatState.messages.size - 1))
-                        pendingNewChunks = 0
-                    }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Text("新消息")
-            }
-        }
-    }
+//    Box(modifier = Modifier.fillMaxSize()) {
+//        if (pendingNewChunks > 0) {
+//            FloatingActionButton(
+//                onClick = {
+//                    // scroll to bottom
+//                    scope.launch {
+//                        listState.animateScrollToItem(max(0, chatState.messages.size - 1))
+//                        pendingNewChunks = 0
+//                    }
+//                },
+//                modifier = Modifier
+//                    .align(Alignment.BottomEnd)
+//                    .padding(16.dp)
+//            ) {
+//                Text("新消息")
+//            }
+//        }
+//    }
 
     // 编辑系统提示词对话框
     if (showEditPromptDialog) {

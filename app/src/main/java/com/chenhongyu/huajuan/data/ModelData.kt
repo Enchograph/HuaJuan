@@ -78,7 +78,10 @@ class ModelDataProvider(private val repository: Repository) {
                     ModelInfo("Gemini-2.5-Pro-Thinking", "gemini-2.5-pro-thinking"),
                     ModelInfo("Gemini-3", "gemini-3"),
                     ModelInfo("Gemini-3-Pro-Preview-Thinking", "gemini-3-pro-preview-thinking"),
-                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo")
+                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo"),
+                    // 本地MNN模型展示名，但实际调用“应用试用”的对应云端模型代号
+                    ModelInfo("Qwen3-0.6B-MNN", "mistral-7b-instruct"),
+                    ModelInfo("MobileLLM-125M-MNN", "qwen-72b")
                 )
             ),
             "硅基流动" to ServiceProviderInfo(

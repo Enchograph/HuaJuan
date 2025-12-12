@@ -228,16 +228,16 @@ fun AICreationEditor(
                     .fillMaxSize(), verticalArrangement = Arrangement.Top) {
 
                     // header info: username, ai role, times
-                    Text(text = "发布者: ${userInfo.username}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "AI 角色: ${repository.getConversationRoleName(conversationId)}", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    val convStart = conversationMessages?.firstOrNull()?.timestamp ?: (conversationAt?.let { java.util.Date(it) })
-                    if (convStart != null) {
-                        Text(text = "对话时间: ${formatConversationTime(convStart)}", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text(text = "发布时间: ${formatTime(java.util.Date(publishedAt))}", style = MaterialTheme.typography.bodySmall)
-
-                    Spacer(modifier = Modifier.height(8.dp))
+//                    Text(text = "发布者: ${userInfo.username}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+//                    Text(text = "AI 角色: ${repository.getConversationRoleName(conversationId)}", style = MaterialTheme.typography.bodySmall)
+//                    Spacer(modifier = Modifier.height(6.dp))
+//                    val convStart = conversationMessages?.firstOrNull()?.timestamp ?: (conversationAt?.let { java.util.Date(it) })
+//                    if (convStart != null) {
+//                        Text(text = "对话时间: ${formatConversationTime(convStart)}", style = MaterialTheme.typography.bodySmall)
+//                    }
+//                    Text(text = "发布时间: ${formatTime(java.util.Date(publishedAt))}", style = MaterialTheme.typography.bodySmall)
+//
+//                    Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = title,
@@ -252,7 +252,7 @@ fun AICreationEditor(
                     OutlinedTextField(
                         value = commentary,
                         onValueChange = { commentary = it },
-                        label = { Text("吐槽 / 感想 (帖子正文) ") },
+                        label = { Text("帖子正文") },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                         maxLines = 6
                     )
@@ -281,18 +281,18 @@ fun AICreationEditor(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // preview area
-                    Box(modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                        if (previewBmp != null) {
-                            Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = "封面预览", modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-                        } else {
-                            Text(if (isGenerating) "正在生成封面..." else "尚未生成封面（封面将作为帖子封面）")
-                        }
-                    }
+//                    Box(modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(220.dp)
+//                        .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+//                        if (previewBmp != null) {
+//                            Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = "封面预览", modifier = Modifier
+//                                .fillMaxSize()
+//                                .clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+//                        } else {
+//                            Text(if (isGenerating) "正在生成封面..." else "尚未生成封面（封面将作为帖子封面）")
+//                        }
+//                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 

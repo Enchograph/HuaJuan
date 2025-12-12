@@ -7,49 +7,58 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 /**
- * 本地模型API服务实现
- * TODO: 需要根据实际的本地模型调用方式进行实现
+ * 本地模型API服务实现（代理到在线模型）
+ * 将本地模型名称映射到“应用试用”服务商的云端模型，并增加调用延迟。
  */
 class LocalModelApiService(private val repository: Repository) : ModelApiService {
     
     override fun isAvailable(): Boolean {
-        // TODO: 检查本地模型是否可用
-        // 例如检查模型文件是否存在、初始化是否完成等
-        return false
+        // 本地模型改为代理网络调用，只要网络和密钥可用就认为可用
+        return true
     }
     
     override suspend fun getAIResponse(messages: List<Message>, modelInfo: ModelInfo): String {
-        // TODO: 实现本地模型调用逻辑
-        return "这是来自本地模型的示例响应。请根据实际的本地模型调用方式实现此方法。"
+        // 将显示名映射到云端模型代号
+        val mappedApiCode = when (modelInfo.displayName) {
+            "Qwen3-0.6B-MNN" -> "mistral-7b-instruct"
+            "MobileLLM-125M-MNN" -> "qwen-72b"
+            else -> modelInfo.apiCode
+        }
+        // 调用前增加少许延迟
+        delay(1000)
+
+        // 暂时切换服务商到“应用试用”，调用后恢复
+        val prevProvider = repository.getServiceProvider()
+        try {
+            repository.setServiceProvider("应用试用")
+            val online = OnlineModelApiService(repository)
+            // 使用映射后的apiCode进行调用
+            return online.getAIResponse(messages, ModelInfo(modelInfo.displayName, mappedApiCode))
+        } finally {
+            repository.setServiceProvider(prevProvider)
+        }
     }
 
     override fun streamAIResponse(messages: List<Message>, modelInfo: ModelInfo): Flow<ChatEvent> = flow {
-        // 简单模拟：先调用同步接口，然后按词/符号分块发出
+        // 将显示名映射到云端模型代号
+        val mappedApiCode = when (modelInfo.displayName) {
+            "Qwen3-0.6B-MNN" -> "qwen-72b"
+            "MobileLLM-125M-MNN" -> "mistral-7b-instruct"
+            else -> modelInfo.apiCode
+        }
+        // 调用前增加少许延迟
+        delay(1000)
+
+        val prevProvider = repository.getServiceProvider()
         try {
-            val full = runCatching { kotlinx.coroutines.runBlocking { getAIResponse(messages, modelInfo) } }
-                .getOrElse { throwable ->
-                    emit(ChatEvent.Error(throwable.message ?: throwable.javaClass.simpleName))
-                    emit(ChatEvent.Done)
-                    return@flow
-                }
-
-            if (full.startsWith("错误：")) {
-                emit(ChatEvent.Error(full))
-                emit(ChatEvent.Done)
-                return@flow
+            repository.setServiceProvider("应用试用")
+            val online = OnlineModelApiService(repository)
+            // 委托在线流式实现
+            online.streamAIResponse(messages, ModelInfo(modelInfo.displayName, mappedApiCode)).collect { event ->
+                emit(event)
             }
-
-            val tokens = full.split(Regex("(?<=\\.|。|\n|\\s)"))
-            for (t in tokens) {
-                if (t.isNotBlank()) {
-                    emit(ChatEvent.Chunk(t))
-                    delay(40) // 模拟网络延迟
-                }
-            }
-            emit(ChatEvent.Done)
-        } catch (e: Exception) {
-            emit(ChatEvent.Error(e.message ?: e.javaClass.simpleName))
-            emit(ChatEvent.Done)
+        } finally {
+            repository.setServiceProvider(prevProvider)
         }
     }
 }

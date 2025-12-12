@@ -80,7 +80,9 @@ fun SettingScreen(
     var debugMode by remember { mutableStateOf<Boolean>(repository.getDebugMode()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
+    // 本地模型选中状态（仅在 useCloudModel = false 时使用）
+    var localSelectedModel by remember { mutableStateOf("Qwen3-0.6B-MNN") }
+
     // 添加调试输出
     LaunchedEffect(serviceProvider) {
         println("当前选中的服务提供商: $serviceProvider")
@@ -625,7 +627,7 @@ fun SettingScreen(
                                     ListItem(
                                         headlineContent = { 
                                             Text(
-                                                text = "Qwen 7B",
+                                                text = "Qwen3-0.6B-MNN",
                                                 color = MaterialTheme.colorScheme.onSurface
                                             ) 
                                         },
@@ -637,10 +639,10 @@ fun SettingScreen(
                                         },
                                         trailingContent = {
                                             RadioButton(
-                                                selected = true,
-                                                onClick = { 
-                                                    /* 选择模型 */
-                                                    println("选择了Qwen 7B模型")
+                                                selected = localSelectedModel == "Qwen3-0.6B-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "Qwen3-0.6B-MNN"
+                                                    println("选择了Qwen3-0.6B-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
                                                     selectedColor = MaterialTheme.colorScheme.primary,
@@ -662,7 +664,7 @@ fun SettingScreen(
                                     ListItem(
                                         headlineContent = { 
                                             Text(
-                                                text = "Llama 2 7B",
+                                                text = "MobileLLM-125M-MNN",
                                                 color = MaterialTheme.colorScheme.onSurface
                                             ) 
                                         },
@@ -674,10 +676,10 @@ fun SettingScreen(
                                         },
                                         trailingContent = {
                                             RadioButton(
-                                                selected = false,
-                                                onClick = { 
-                                                    /* 选择模型 */
-                                                    println("选择了Llama 2 7B模型")
+                                                selected = localSelectedModel == "MobileLLM-125M-MNN",
+                                                onClick = {
+                                                    localSelectedModel = "MobileLLM-125M-MNN"
+                                                    println("选择了MobileLLM-125M-MNN模型")
                                                 },
                                                 colors = RadioButtonDefaults.colors(
                                                     selectedColor = MaterialTheme.colorScheme.primary,
@@ -693,6 +695,7 @@ fun SettingScreen(
                                     onClick = { 
                                         /* 下载新模型 */
                                         println("添加模型按钮被点击")
+                                        Toast.makeText(context, "模型广场功能正在开发中", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
