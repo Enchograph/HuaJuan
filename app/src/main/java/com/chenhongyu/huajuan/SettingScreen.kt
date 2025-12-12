@@ -695,7 +695,7 @@ fun SettingScreen(
                                     onClick = { 
                                         /* 下载新模型 */
                                         println("添加模型按钮被点击")
-                                        Toast.makeText(context, "模型广场功能正在开发中", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "模型广场功能敬请期待……", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()

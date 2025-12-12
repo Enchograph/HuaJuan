@@ -393,8 +393,10 @@ fun ChatScreen(
                 }
             )
         },
-        containerColor = MaterialTheme.colorScheme.surface
-    ) { paddingValues -> 
+        containerColor = MaterialTheme.colorScheme.surface,
+        // Opt-out of all automatic window insets to avoid double application
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { paddingValues ->
          ChatContentArea(
              messages = chatState.messages,
              repository = repository,
@@ -824,8 +826,9 @@ fun BottomInputArea(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .imePadding() // 自动适应输入法高度
-            .navigationBarsPadding() // 自动适应导航栏高度
+            // Apply nav bar padding when IME is hidden, and IME padding when shown
+            .navigationBarsPadding()
+            .imePadding()
     ) {
         // 输入框行
         Row(
@@ -916,175 +919,175 @@ fun BottomInputArea(
         }
         
         // 扩展区
-        if (isExpanded) {
-            ExpandedInputArea()
-        }
+//        if (isExpanded) {
+//            ExpandedInputArea()
+//        }
     }
 }
 
 /**
  * 扩展输入区域
  */
-@Composable
-fun ExpandedInputArea() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
-            .navigationBarsPadding() // 适配导航栏
-    ) {
-        // 第一行功能按钮
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(
-                    onClick = { 
-                        /* 相机功能 */
-                        println("扩展区域相机按钮被点击")
-                    },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Outlined.CameraAlt, 
-                        contentDescription = "相机",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Text(
-                    text = "相机", 
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(
-                    onClick = { 
-                        /* 相册功能 */
-                        println("相册按钮被点击")
-                    },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Outlined.PhotoLibrary, 
-                        contentDescription = "相册",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Text(
-                    text = "相册", 
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(
-                    onClick = { 
-                        /* 文件功能 */
-                        println("文件按钮被点击")
-                    },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Outlined.InsertDriveFile, 
-                        contentDescription = "文件",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Text(
-                    text = "文件", 
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                IconButton(
-                    onClick = { 
-                        /* 打电话功能 */
-                        println("打电话按钮被点击")
-                    },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Outlined.Call, 
-                        contentDescription = "打电话",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-                Text(
-                    text = "通话", 
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        
-        // 图片网格标题
-        Text(
-            text = "最近图片",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier
-                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        
-        // 四列2.5行的图片网格
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        ) {
-            repeat(3) { rowIndex ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    repeat(4) { columnIndex ->
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .padding(4.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { 
-                                    println("选择了图片: 行$rowIndex, 列$columnIndex")
-                                }
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .align(Alignment.Center)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(MaterialTheme.colorScheme.onSurfaceVariant)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+//@Composable
+//fun ExpandedInputArea() {
+//    Column(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(bottom = 16.dp)
+//            .navigationBarsPadding() // 适配导航栏
+//    ) {
+//        // 第一行功能按钮
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(horizontal = 16.dp),
+//            horizontalArrangement = Arrangement.SpaceBetween
+//        ) {
+//            Column(
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                IconButton(
+//                    onClick = {
+//                        /* 相机功能 */
+//                        println("扩展区域相机按钮被点击")
+//                    },
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+//                ) {
+//                    Icon(
+//                        Icons.Outlined.CameraAlt,
+//                        contentDescription = "相机",
+//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
+//                }
+//                Text(
+//                    text = "相机",
+//                    fontSize = 12.sp,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+//
+//            Column(
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                IconButton(
+//                    onClick = {
+//                        /* 相册功能 */
+//                        println("相册按钮被点击")
+//                    },
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+//                ) {
+//                    Icon(
+//                        Icons.Outlined.PhotoLibrary,
+//                        contentDescription = "相册",
+//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
+//                }
+//                Text(
+//                    text = "相册",
+//                    fontSize = 12.sp,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+//
+//            Column(
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                IconButton(
+//                    onClick = {
+//                        /* 文件功能 */
+//                        println("文件按钮被点击")
+//                    },
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+//                ) {
+//                    Icon(
+//                        Icons.AutoMirrored.Outlined.InsertDriveFile,
+//                        contentDescription = "文件",
+//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
+//                }
+//                Text(
+//                    text = "文件",
+//                    fontSize = 12.sp,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+//
+//            Column(
+//                horizontalAlignment = Alignment.CenterHorizontally
+//            ) {
+//                IconButton(
+//                    onClick = {
+//                        /* 打电话功能 */
+//                        println("打电话按钮被点击")
+//                    },
+//                    modifier = Modifier
+//                        .size(56.dp)
+//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+//                ) {
+//                    Icon(
+//                        Icons.Outlined.Call,
+//                        contentDescription = "打电话",
+//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+//                    )
+//                }
+//                Text(
+//                    text = "通话",
+//                    fontSize = 12.sp,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+//            }
+//        }
+//
+//        // 图片网格标题
+//        Text(
+//            text = "最近图片",
+//            style = MaterialTheme.typography.titleMedium,
+//            fontWeight = FontWeight.Medium,
+//            modifier = Modifier
+//                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
+//            color = MaterialTheme.colorScheme.onSurface
+//        )
+//
+//        // 四列2.5行的图片网格
+//        Column(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .padding(horizontal = 16.dp)
+//        ) {
+//            repeat(3) { rowIndex ->
+//                Row(
+//                    modifier = Modifier
+//                        .fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween
+//                ) {
+//                    repeat(4) { columnIndex ->
+//                        Box(
+//                            modifier = Modifier
+//                                .size(70.dp)
+//                                .padding(4.dp)
+//                                .clip(RoundedCornerShape(8.dp))
+//                                .background(MaterialTheme.colorScheme.surfaceVariant)
+//                                .clickable {
+//                                    println("选择了图片: 行$rowIndex, 列$columnIndex")
+//                                }
+//                        ) {
+//                            Box(
+//                                modifier = Modifier
+//                                    .size(24.dp)
+//                                    .align(Alignment.Center)
+//                                    .clip(RoundedCornerShape(4.dp))
+//                                    .background(MaterialTheme.colorScheme.onSurfaceVariant)
+//                            )
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}

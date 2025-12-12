@@ -153,33 +153,33 @@ fun SideDrawer(
                     },
                     trailingContent = {
                         Row {
-                            IconButton(
-                                onClick = {
-                                    println("点击了扫码按钮")
-                                },
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.QrCodeScanner,
-                                    contentDescription = "扫码",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    println("点击了通知按钮")
-                                },
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Notifications,
-                                    contentDescription = "通知",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                            }
+//                            IconButton(
+//                                onClick = {
+//                                    println("点击了扫码按钮")
+//                                },
+//                                modifier = Modifier
+//                                    .clip(CircleShape)
+//                            ) {
+//                                Icon(
+//                                    imageVector = Icons.Outlined.QrCodeScanner,
+//                                    contentDescription = "扫码",
+//                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+//                                )
+//                            }
+//
+//                            IconButton(
+//                                onClick = {
+//                                    println("点击了通知按钮")
+//                                },
+//                                modifier = Modifier
+//                                    .clip(CircleShape)
+//                            ) {
+//                                Icon(
+//                                    imageVector = Icons.Outlined.Notifications,
+//                                    contentDescription = "通知",
+//                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+//                                    )
+//                            }
 
                             IconButton(
                                 onClick = {
