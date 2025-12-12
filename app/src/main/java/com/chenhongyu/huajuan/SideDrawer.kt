@@ -98,6 +98,9 @@ fun SideDrawer(
             val conversationPositions = remember { mutableStateMapOf<String, Pair<Offset, androidx.compose.ui.geometry.Size>>() }
             var pinnedConversations by remember { mutableStateOf(setOf<String>()) }
             
+            // 读取用户信息用于底部用户栏显示
+            val userInfo = remember { repository.getUserInfo() }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -130,7 +133,7 @@ fun SideDrawer(
                 ListItem(
                     headlineContent = {
                         Text(
-                            text = "用户名",
+                            text = userInfo.username,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
@@ -145,7 +148,7 @@ fun SideDrawer(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "U",
+                                text = userInfo.avatar,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 style = MaterialTheme.typography.titleMedium
                             )

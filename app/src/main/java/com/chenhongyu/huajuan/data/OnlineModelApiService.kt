@@ -13,6 +13,7 @@ import okhttp3.*
 import okhttp3.logging.HttpLoggingInterceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.BufferedReader
@@ -36,180 +37,191 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
                 return "错误：API密钥未设置"
             }
 
-            val openAiMessages = messages.map {
-                Message(
-                    role = if (it.role == "user") "user" else "assistant",
-                    content = it.content
-                )
-            }
+            val retrofit = Retrofit.Builder()
+                .baseUrl(repository.getBaseUrl())
+                .client(createOkHttpClient())
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
 
-            // 构造请求对象
+            val apiService = retrofit.create(OpenAiApiService::class.java)
+
             val request = OpenAiRequest(
                 model = modelInfo.apiCode,
-                messages = openAiMessages,
-                temperature = 0.7f
+                messages = messages
             )
 
-            val apiService = createApiService()
-            val response = apiService.getChatCompletion(
-                authorization = "Bearer $apiKey",
-                request = request
-            )
-
-            if (response.isSuccessful) {
-                val openAiResponse = response.body()
-                return openAiResponse?.choices?.firstOrNull()?.message?.content ?: ""
-            } else {
-                return "错误：HTTP ${response.code()} - ${response.message()}"
+            val response = apiService.getChatCompletion("Bearer $apiKey", "application/json", request)
+            if (!response.isSuccessful) {
+                return "错误：${response.code()} ${response.message()}"
             }
+            val body = response.body()
+            return body?.choices?.firstOrNull()?.message?.content ?: "错误：无返回内容"
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
         }
     }
 
     override fun streamAIResponse(messages: List<Message>, modelInfo: ModelInfo): Flow<ChatEvent> = channelFlow {
-        // Use channelFlow so we can safely emit from IO dispatcher while collector may be on UI.
         val apiKey = repository.getApiKey()
         if (apiKey.isEmpty()) {
-            trySend(ChatEvent.Error("API key not set"))
-            trySend(ChatEvent.Done)
+            trySend(ChatEvent.Error("错误：API密钥未设置"))
+            close()
             return@channelFlow
         }
 
         val client = createOkHttpClient()
 
-        // Build JSON body manually to support streaming param if server uses OpenAI-like API
-        val openAiMessages = messages.map {
-            Message(
-                role = if (it.role == "user") "user" else "assistant",
-                content = it.content
-            )
-        }
-
-        val jsonMediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        // Build JSON payload with stream=true
         val gson = com.google.gson.Gson()
-        val bodyMap = mapOf(
-            "model" to modelInfo.apiCode,
-            "messages" to openAiMessages,
-            "temperature" to 0.7f,
-            // request streaming where supported; many providers use "stream": true
-            "stream" to true
-        )
-        val requestBody = gson.toJson(bodyMap).toRequestBody(jsonMediaType)
+        val json = com.google.gson.JsonObject().apply {
+            addProperty("model", modelInfo.apiCode)
+            add("messages", gson.toJsonTree(messages))
+            addProperty("stream", true)
+        }
+        val mediaType = "application/json".toMediaTypeOrNull()
+        val requestBody = gson.toJson(json).toRequestBody(mediaType)
 
-        val request = Request.Builder()
-            .url(getBaseUrl())
+        // 使用 HttpUrl 确保 URL 格式稳定且保留末尾斜杠
+        val base = repository.getBaseUrl()
+        val httpUrl: HttpUrl = base.toHttpUrlOrNull()
+            ?: (if (base.endsWith("/")) base else "$base/").toHttpUrlOrNull()
+            ?: run {
+                trySend(ChatEvent.Error("错误：无效的API地址"))
+                close()
+                return@channelFlow
+            }
+
+        val req = Request.Builder()
+            .url(httpUrl)
             .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "text/event-stream")
+            .addHeader("Cache-Control", "no-cache")
             .post(requestBody)
             .build()
 
-        // Perform blocking network IO on Dispatchers.IO, but send events via trySend so it's safe.
-        var call: Call? = null
-        try {
-            withContext(Dispatchers.IO) {
-                val localCall = client.newCall(request)
-                call = localCall
-                localCall.execute().use { resp ->
-                    val now = System.currentTimeMillis()
-                    //println("STREAM-DEBUG: response received status=${resp.code} protocol=${resp.protocol} at=$now thread=${Thread.currentThread().name}")
-                    // Log some headers that indicate streaming behavior
-                    //println("STREAM-DEBUG: headers=${resp.headers}")
-
-                    if (!resp.isSuccessful) {
-                        trySend(ChatEvent.Error("HTTP ${resp.code} - ${resp.message}"))
-                        trySend(ChatEvent.Done)
-                        return@withContext
-                    }
-
-                    val body = resp.body
-                    if (body == null) {
-                        trySend(ChatEvent.Error("Empty response body"))
-                        trySend(ChatEvent.Done)
-                        return@withContext
-                    }
-
-                    val reader = BufferedReader(InputStreamReader(body.byteStream()))
-                    var line: String?
-
-                    while (reader.readLine().also { line = it } != null) {
-                        val readTime = System.currentTimeMillis()
-                        val raw = line!!.trim()
-                        //println("STREAM-DEBUG: readLine at=$readTime thread=${Thread.currentThread().name} raw='${raw}'")
-                        if (raw.isEmpty()) continue
-
-                        if (raw.startsWith("data:")) {
-                            val payload = raw.removePrefix("data:").trim()
-                            //println("STREAM-DEBUG: data-payload at=$readTime payload='${payload.take(200)}'")
-                            if (payload == "[DONE]") {
-                                trySend(ChatEvent.Done)
-                                break
-                            }
-
-                            try {
-                                val json = gson.fromJson(payload, com.google.gson.JsonObject::class.java)
-                                var textChunk: String? = null
-                                if (json.has("choices")) {
-                                    val choices = json.getAsJsonArray("choices")
-                                    if (choices.size() > 0) {
-                                        val first = choices[0].asJsonObject
-                                        if (first.has("delta")) {
-                                            val delta = first.getAsJsonObject("delta")
-                                            if (delta.has("content")) textChunk = delta.get("content").asString
-                                        } else if (first.has("text")) {
-                                            textChunk = first.get("text").asString
-                                        }
-                                    }
-                                } else if (json.has("text")) {
-                                    textChunk = json.get("text").asString
-                                }
-
-                                if (!textChunk.isNullOrEmpty()) {
-                                    //println("STREAM-DEBUG: emitting chunk at=${System.currentTimeMillis()} len=${textChunk.length} thread=${Thread.currentThread().name} textPreview='${textChunk.take(200)}'")
-                                    trySend(ChatEvent.Chunk(textChunk))
-                                }
-                            } catch (je: Exception) {
-                                je.printStackTrace()
-                                //println("STREAM-DEBUG: emitting raw payload at=${System.currentTimeMillis()}")
-                                trySend(ChatEvent.Chunk(payload))
-                            }
-                        } else {
-                            try {
-                                val json = gson.fromJson(raw, com.google.gson.JsonObject::class.java)
-                                if (json.has("text")) {
-                                    //println("STREAM-DEBUG: emitting text field at=${System.currentTimeMillis()}")
-                                    trySend(ChatEvent.Chunk(json.get("text").asString))
-                                } else {
-                                    //println("STREAM-DEBUG: emitting raw line at=${System.currentTimeMillis()}")
-                                    trySend(ChatEvent.Chunk(raw))
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                //println("STREAM-DEBUG: emitting raw fallback at=${System.currentTimeMillis()}")
-                                trySend(ChatEvent.Chunk(raw))
-                            }
-                        }
-                    }
-
-                    trySend(ChatEvent.Done)
-                }
+        val call = client.newCall(req)
+        withContext(Dispatchers.IO) {
+            val resp = call.execute()
+            if (!resp.isSuccessful) {
+                trySend(ChatEvent.Error("错误：${resp.code} ${resp.message}"))
+                close()
+                return@withContext
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            trySend(ChatEvent.Error(e.message ?: e.javaClass.simpleName))
-            trySend(ChatEvent.Done)
+
+            val body = resp.body ?: run {
+                trySend(ChatEvent.Error("错误：响应为空"))
+                close()
+                return@withContext
+            }
+
+            val contentType = resp.header("Content-Type") ?: ""
+            // If it's not SSE, read entire JSON once and emit parsed text only
+            if (!contentType.contains("text/event-stream", ignoreCase = true)) {
+                try {
+                    val full = body.string()
+                    val text = extractTextFromJson(full)
+                    if (text.isNotEmpty()) {
+                        trySend(ChatEvent.Chunk(text))
+                    } else {
+                        trySend(ChatEvent.Error("错误：解析响应失败"))
+                    }
+                    trySend(ChatEvent.Done)
+                } catch (e: Exception) {
+                    trySend(ChatEvent.Error("错误：${e.message}"))
+                } finally {
+                    body.close()
+                    close()
+                }
+                return@withContext
+            }
+
+            // SSE streaming parsing
+            val reader = BufferedReader(InputStreamReader(body.byteStream()))
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val raw = line?.trim() ?: continue
+                    if (raw.isEmpty()) continue
+
+                    // Expect lines like: "data: {json}"
+                    val payload = when {
+                        raw.startsWith("data:") -> raw.substringAfter("data:").trim()
+                        // Some providers may send pure JSON lines without the prefix
+                        raw.startsWith("{") || raw.startsWith("[") -> raw
+                        else -> null
+                    } ?: continue
+
+                    if (payload == "[DONE]" || payload == "{\"done\":true}" ) {
+                        trySend(ChatEvent.Done)
+                        break
+                    }
+
+                    // Parse JSON and extract incremental content
+                    val piece = try {
+                        extractDeltaFromSseJson(payload)
+                    } catch (e: Exception) {
+                        // As a fallback, try full message extractor
+                        extractTextFromJson(payload)
+                    }
+                    if (piece.isNotEmpty()) {
+                        trySend(ChatEvent.Chunk(piece))
+                    }
+                }
+                // If loop ends without explicit done, send Done
+                trySend(ChatEvent.Done)
+            } catch (e: Exception) {
+                trySend(ChatEvent.Error("错误：${e.message}"))
+            } finally {
+                reader.close()
+                body.close()
+                close()
+            }
         }
 
-        // Cancel underlying OkHttp call if the collector cancels the Flow
-        awaitClose { call?.cancel() }
+        awaitClose { call.cancel() }
     }
 
-    // 创建OkHttpClient实例
+    // Extract full text from a non-stream JSON response
+    private fun extractTextFromJson(json: String): String {
+        return try {
+            val element = com.google.gson.JsonParser.parseString(json)
+            if (!element.isJsonObject) return ""
+            val obj = element.asJsonObject
+
+            // Common OpenAI-style chat completion
+            obj.getAsJsonArray("choices")?.firstOrNull()?.asJsonObject?.let { choice ->
+                // If already full message
+                choice.getAsJsonObject("message")?.get("content")?.asString?.let { return it }
+                // Some providers put text directly
+                choice.get("text")?.asString?.let { return it }
+            }
+
+            // Some providers may use top-level "content" or "output_text"
+            obj.get("content")?.asString ?: obj.get("output_text")?.asString ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    // Extract delta text piece from SSE JSON chunk for chat.completions-like APIs
+    private fun extractDeltaFromSseJson(payload: String): String {
+        return try {
+            val element = com.google.gson.JsonParser.parseString(payload)
+            if (!element.isJsonObject) return ""
+            val obj = element.asJsonObject
+            val choices = obj.getAsJsonArray("choices") ?: return ""
+            val first = choices.firstOrNull()?.asJsonObject ?: return ""
+
+            // OpenAI-compatible streaming: choices[].delta.content
+            first.getAsJsonObject("delta")?.get("content")?.asString
+                ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
     private fun createOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // For streaming responses we must not use Level.BODY because it may read/consume the
-            // response body (buffering the entire stream) which prevents incremental processing.
-            // Use HEADERS for safe debugging; increase verbosity only when reproducing not-in-prod.
             level = HttpLoggingInterceptor.Level.HEADERS
         }
 
@@ -218,82 +230,5 @@ class OnlineModelApiService(private val repository: Repository) : ModelApiServic
             .readTimeout(0, TimeUnit.SECONDS) // allow indefinite read for streaming
             .addInterceptor(loggingInterceptor)
             .build()
-    }
-
-    // 创建API服务
-    private fun createApiService(): OpenAiApiService {
-        val retrofit = Retrofit.Builder()
-            .baseUrl(getBaseUrl())
-            .client(createOkHttpClient())
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-
-        return retrofit.create(OpenAiApiService::class.java)
-    }
-
-    // 获取基础URL
-    private fun getBaseUrl(): String {
-        val serviceProvider = repository.getServiceProvider()
-        // 对于预定义的服务提供商，使用ModelDataProvider获取API URL
-        val modelDataProvider = ModelDataProvider(repository)
-        val predefinedUrl = modelDataProvider.getApiUrlForProvider(serviceProvider)
-        if (predefinedUrl.isNotEmpty()) {
-            // 预定义的服务商URL已经是正确的格式，直接返回
-            // 确保URL以斜杠结尾（满足Retrofit要求）
-            return if (predefinedUrl.endsWith("/")) predefinedUrl else "$predefinedUrl/"
-        }
-
-        // 对于自定义服务提供商，使用存储的URL并进行规范化处理
-        val customUrl = when (serviceProvider) {
-            "自定义" -> repository.getCustomApiUrl().ifEmpty { "https://api.openai.com/v1/chat/completions" }
-            else -> repository.getCustomProviderApiUrl(serviceProvider).ifEmpty { "https://api.openai.com/v1/chat/completions" }
-        }
-
-        return normalizeBaseUrl(customUrl)
-    }
-
-    /**
-     * 规范化基础URL，确保它以正确的格式结尾，适用于OpenAI API格式
-     * 仅对用户自定义的服务商生效
-     * 处理各种可能的输入格式：
-     * - https://ai.soruxgpt.com
-     * - https://ai.soruxgpt.com/
-     * - https://ai.soruxgpt.com/v1/chat/completions
-     * - https://ai.soruxgpt.com/v1/chat/completions/
-     */
-    private fun normalizeBaseUrl(url: String): String {
-        if (url.isBlank()) return "https://api.openai.com/v1/chat/completions/"
-
-        var normalizedUrl = url.trim()
-
-        // 移除末尾的斜杠
-        while (normalizedUrl.endsWith("/")) {
-            normalizedUrl = normalizedUrl.dropLast(1)
-        }
-
-        // 检查是否以标准的OpenAI API路径结尾
-        if (normalizedUrl.endsWith("/v1/chat/completions") ||
-            normalizedUrl.endsWith("/v1/completions") ||
-            normalizedUrl.endsWith("/v1/embeddings")) {
-            // 已经是完整的API端点URL，直接返回
-            return "$normalizedUrl/"
-        } else if (normalizedUrl.contains("/v1/")) {
-            // 如果包含其他v1端点，也直接返回
-            return "$normalizedUrl/"
-        }
-
-        // 不包含v1路径，需要添加默认的chat completions路径
-        // 确保URL以斜杠结尾
-        if (!normalizedUrl.endsWith("/")) {
-            normalizedUrl += "/"
-        }
-
-        // 确保URL以https://开头
-        if (!normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("http://")) {
-            normalizedUrl = "https://$normalizedUrl"
-        }
-
-        // 添加默认的v1 chat completions路径
-        return "${normalizedUrl}v1/chat/completions/"
     }
 }

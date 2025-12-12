@@ -66,21 +66,15 @@ class ModelDataProvider(private val repository: Repository) {
                 "应用试用",
                 "https://ai.soruxgpt.com/v1/chat/completions/",
                 listOf(
-                    ModelInfo("ChatGPT-4o", "chatgpt-4o"),
-                    ModelInfo("Claude-Sonnet", "claude-sonnet"),
-                    ModelInfo("Claude-Sonnet-4-5-All", "claude-sonnet-4-5-all"),
-                    ModelInfo("DeepSeek", "deepseek"),
-                    ModelInfo("DeepSeek-Reasoner", "deepseek-reasoner"),
-                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-v3.2-exp"),
-                    ModelInfo("Net-DeepSeek-R1", "net-deepseek-r1"),
-                    ModelInfo("Gemini-2.5", "gemini-2.5"),
-                    ModelInfo("Gemini-2.5-Flash-Thinking", "gemini-2.5-flash-thinking"),
-                    ModelInfo("Gemini-2.5-Pro-Thinking", "gemini-2.5-pro-thinking"),
-                    ModelInfo("Gemini-3", "gemini-3"),
-                    ModelInfo("Gemini-3-Pro-Preview-Thinking", "gemini-3-pro-preview-thinking"),
-                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo"),
-//                    ModelInfo("Qwen3-0.6B-MNN", "mistral-7b-instruct"),
-//                    ModelInfo("MobileLLM-125M-MNN", "qwen-72b")
+                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo") ,
+                    ModelInfo("ChatGPT-4o", "chatgpt-4o-latest"),
+                    ModelInfo("Claude-Sonnet-4", "claude-sonnet-4-all"),
+                    ModelInfo("Claude-Sonnet-4-5", "claude-sonnet-4-5-all"),
+                    ModelInfo("DeepSeek-V3", "deepseek-v3"),
+                    ModelInfo("DeepSeek-R1", "deepseek-r1"),
+                    ModelInfo("Gemini-2.5-Flash", "gemini-2.5-flash-nothinking"),
+                    ModelInfo("Gemini-2.5-Pro", "gemini-2.5-pro-nothinking"),
+                    ModelInfo("Gemini-3", "gemini-3-pro-all")
                 )
             ),
             "硅基流动" to ServiceProviderInfo(
@@ -136,19 +130,15 @@ class ModelDataProvider(private val repository: Repository) {
                 "SoruxGPT",
                 "https://ai.soruxgpt.com/v1/chat/completions/",
                 listOf(
-                    ModelInfo("ChatGPT-4o", "chatgpt-4o"),
-                    ModelInfo("Claude-Sonnet", "claude-sonnet"),
-                    ModelInfo("Claude-Sonnet-4-5-All", "claude-sonnet-4-5-all"),
-                    ModelInfo("DeepSeek", "deepseek"),
-                    ModelInfo("DeepSeek-Reasoner", "deepseek-reasoner"),
-                    ModelInfo("DeepSeek-V3.2-Exp", "deepseek-v3.2-exp"),
-                    ModelInfo("Net-DeepSeek-R1", "net-deepseek-r1"),
-                    ModelInfo("Gemini-2.5", "gemini-2.5"),
-                    ModelInfo("Gemini-2.5-Flash-Thinking", "gemini-2.5-flash-thinking"),
-                    ModelInfo("Gemini-2.5-Pro-Thinking", "gemini-2.5-pro-thinking"),
-                    ModelInfo("Gemini-3", "gemini-3"),
-                    ModelInfo("Gemini-3-Pro-Preview-Thinking", "gemini-3-pro-preview-thinking"),
-                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo")
+                    ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo") ,
+                    ModelInfo("ChatGPT-4o", "chatgpt-4o-latest"),
+                    ModelInfo("Claude-Sonnet-4", "claude-sonnet-4-all"),
+                    ModelInfo("Claude-Sonnet-4-5", "claude-sonnet-4-5-all"),
+                    ModelInfo("DeepSeek-V3", "deepseek-v3"),
+                    ModelInfo("DeepSeek-R1", "deepseek-r1"),
+                    ModelInfo("Gemini-2.5-Flash", "gemini-2.5-flash-nothinking"),
+                    ModelInfo("Gemini-2.5-Pro", "gemini-2.5-pro-nothinking"),
+                    ModelInfo("Gemini-3", "gemini-3-pro-all")
                 )
             ),
             "OpenAI" to ServiceProviderInfo(

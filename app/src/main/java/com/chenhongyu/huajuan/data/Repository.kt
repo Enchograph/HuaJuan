@@ -438,7 +438,7 @@ class Repository(private val context: Context) {
     }
     
     // 获取基础URL
-    private fun getBaseUrl(): String {
+    fun getBaseUrl(): String {
         val serviceProvider = getServiceProvider()
         // 对于预定义的服务提供商，使用ModelDataProvider获取API URL
         val modelDataProvider = ModelDataProvider(this)
@@ -461,24 +461,20 @@ class Repository(private val context: Context) {
     /**
      * 规范化基础URL，确保它以正确的格式结尾，适用于OpenAI API格式
      * 仅对用户自定义的服务商生效
-     * 处理各种可能的输入格式：
-     * - https://ai.soruxgpt.com
-     * - https://ai.soruxgpt.com/
-     * - https://ai.soruxgpt.com/v1/chat/completions
-     * - https://ai.soruxgpt.com/v1/chat/completions/
+     * 处理各种可能的输入格式
      */
     private fun normalizeBaseUrl(url: String): String {
         if (url.isBlank()) return "https://api.openai.com/v1/chat/completions/"
-        
+
         var normalizedUrl = url.trim()
-        
+
         // 移除末尾的斜杠
         while (normalizedUrl.endsWith("/")) {
             normalizedUrl = normalizedUrl.dropLast(1)
         }
-        
+
         // 检查是否以标准的OpenAI API路径结尾
-        if (normalizedUrl.endsWith("/v1/chat/completions") || 
+        if (normalizedUrl.endsWith("/v1/chat/completions") ||
             normalizedUrl.endsWith("/v1/completions") ||
             normalizedUrl.endsWith("/v1/embeddings")) {
             // 已经是完整的API端点URL，直接返回
@@ -487,22 +483,22 @@ class Repository(private val context: Context) {
             // 如果包含其他v1端点，也直接返回
             return "$normalizedUrl/"
         }
-        
+
         // 不包含v1路径，需要添加默认的chat completions路径
         // 确保URL以斜杠结尾
         if (!normalizedUrl.endsWith("/")) {
             normalizedUrl += "/"
         }
-        
+
         // 确保URL以https://开头
         if (!normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("http://")) {
             normalizedUrl = "https://$normalizedUrl"
         }
-        
+
         // 添加默认的v1 chat completions路径
         return "${normalizedUrl}v1/chat/completions/"
     }
-    
+
     // 获取AI响应
     suspend fun getAIResponse(messages: List<Message>, conversationId: String): String {
         try {

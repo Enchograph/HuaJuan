@@ -25,7 +25,7 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
             else -> modelInfo.apiCode
         }
         // 调用前增加少许延迟
-        delay(1000)
+        //delay(1000)
 
         // 暂时切换服务商到“应用试用”，调用后恢复
         val prevProvider = repository.getServiceProvider()
@@ -47,7 +47,7 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
             else -> modelInfo.apiCode
         }
         // 调用前增加少许延迟
-        delay(1000)
+        //delay(1000)
 
         val prevProvider = repository.getServiceProvider()
         try {
