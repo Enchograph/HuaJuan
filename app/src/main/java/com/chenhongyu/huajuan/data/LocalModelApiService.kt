@@ -1,68 +1,216 @@
 package com.chenhongyu.huajuan.data
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.util.Log
+import androidx.core.content.ContextCompat
 import com.chenhongyu.huajuan.network.Message
-import com.chenhongyu.huajuan.stream.ChatEvent
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import android.util.Pair
+import com.google.gson.Gson
+import java.util.HashMap
+import java.util.stream.Collectors
 
 /**
- * 本地模型API服务实现（示例版）
- * 根据所选本地模型返回不同的静态示例输出。
+ * 本地模型API服务实现
  */
 class LocalModelApiService(private val repository: Repository) : ModelApiService {
+    companion object {
+        private const val TAG = "LocalModelApiService"
+        private const val MODEL_PATH = "model/notQwen3/config.json"
+        
+        init {
+            System.loadLibrary("mnnllmapp")
+        }
+    }
 
-    private val model1Name = "Qwen3-0.6B-MNN"
-    private val model2Name = "MobileLLM-125M-MNN"
-
-    private val outputModel1 = "我是一个基于大语言模型的助手，专注于提供帮助和解答问题。如果你有任何问题或需要支持，请随时告诉我！"
-    private val outputModel2 = "jel Nicolasglobal Nicolas Nicolas Archivedrive Nicolas Nicolasreb UTC Nicolas Nicolas mare Nicolas Sam Nicolasogn Nicolas Nicolasue Nicolasauthentication Sam Nicolasścirebueщі cientíщі NicolasIT network grasp NicolasITщіщі ClaITITIT mare NicolashelyueueIT NicolasyedITщіrebyedIT NicolasyedontonowrebrebyedontorebrebITdoubleDocumentovAfterovov Nicolas lovittest Villageovста rol戦ov Nicolas couplingov Nicolasyedonto rolcenteyedognov sslovoggleovდ rolζov sslovoggleov ssl rolREATEov StraßeՀovoggleov persistov Straße Straßeov sslപ SKov Luddonov rocksovდ explic Gamesov LudREATEovდ  % chamberyednementov sslyedyedyedyednementovyedyedyedyed ?ariyed ? Villagenement containedyednement med就itableaxis Villageangedangedangedangedangedangedangedangedangedangedangedangedangedanged Village sslnementchrome幸angedangedangedangedangedangedangedangedanged explan Village Се tir LIN giantyedyar VillageyedDialogachsenckeraxisER Gall Gallyed ад Gallté UTCcente UTC likely tren Village Се UTCuez UTC figura правoggle Village Gall Gall cientí Gall Gallდ UTC UTC giantyedდ  % Gall Villageartња  % UTC UTC Village district Village UTC UTC frequently Village Gran Village UTC UTCkommen UTC frequently shookulk UTC frequently Games Villageachsen aujourd Village shook companionAutres inde inde СеyedQL현 UTCuez tile UTC Pa  % indeanged Сеue Сеueangedanged GranIOException Village Gall Gall  %uez tileether Granoggle Gran edenska likelyataenskauez tile현 giant contributeFM UTCté awarded UTC UTC UTC Head dirig UTC UTC AntéненияMc Village Gall Village incrementчинаistrzost Villageционuez UTC UTC contributeក  %yedбурanged SurPerm Village Village Lud stroCremaste stroCreaxis bread  % stroCre道Creović awardedavia Village removaldataCre Gall stroറovićaded survoggle stro Gall stro Village Village diplom stro stro stro Gall stroovCreuptargvња stro stro  %upt experiencesCreyed ABC Village diplom Gall stroovCre Wik Gall Adamistrzost  % diplomपov stro ERovCreuptേovCre  % diplomCreേCre tren"
+    private var nativePtr: Long = 0
+    private var modelLoading = false
+    private var generating = false
+    private var releaseRequested = false
+    private var sessionId: String = ""
+    private var keepHistory = false
 
     override fun isAvailable(): Boolean {
-        // 示例：返回固定的可用性状态。实际实现中请根据本地模型环境检查。
-        return true
+        // 检查assets目录中是否存在模型文件
+        return try {
+            val context = repository.getContext()
+            val assetManager = context.assets
+            assetManager.open(MODEL_PATH).use { 
+                Log.d(TAG, "Model file found in assets: $MODEL_PATH")
+                true
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Model file not found in assets: $MODEL_PATH", e)
+            false
+        }
     }
-
+    
     override suspend fun getAIResponse(messages: List<Message>, modelInfo: ModelInfo): String {
-        // 根据选择的本地模型返回对应的静态完整文本
-        val selected = modelInfo.displayName
-        return when (selected) {
-            model1Name -> outputModel1
-            model2Name -> outputModel2
-            else -> outputModel1 // 默认回退到模型1的示例
+        return try {
+            // 初始化模型会话（如果尚未初始化）
+            if (nativePtr == 0L) {
+                initializeModelSession()
+            }
+            
+            // 等待模型加载完成
+            if (!modelLoading) {
+                loadModel()
+            }
+            
+            // 获取最新的用户消息作为提示
+            val latestUserMessage = messages.lastOrNull { it.role == "user" }?.content ?: ""
+            if (latestUserMessage.isEmpty()) {
+                return "没有找到用户输入消息"
+            }
+            
+            // 生成回复
+            generateResponse(latestUserMessage)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting AI response from local model", e)
+            "本地模型调用出错: ${e.message ?: e.javaClass.simpleName}"
         }
     }
-
-    override fun streamAIResponse(messages: List<Message>, modelInfo: ModelInfo): Flow<ChatEvent> = flow {
-        // 流式示例：根据模型选择发送对应文本，按小块分片以模拟真实流式
-        val selected = modelInfo.displayName
-        val fullText = when (selected) {
-            model1Name -> outputModel1
-            model2Name -> outputModel2
-            else -> outputModel1
+    
+    private suspend fun initializeModelSession() {
+        // 获取应用内部存储中的模型路径
+        val context = repository.getContext()
+        val modelPath = File(context.filesDir, MODEL_PATH).absolutePath
+        sessionId = System.currentTimeMillis().toString()
+        
+        // 加载模型配置
+        val configFile = File(modelPath)
+        val configParent = configFile.parent
+        val configFileName = configFile.name
+        
+        nativePtr = suspendCancellableCoroutine { continuation ->
+            try {
+                val ptr = initNative(
+                    modelPath,
+                    null, // history
+                    "{}", // mergedConfigStr
+                    Gson().toJson(
+                        HashMap<String, Any>().apply {
+                            put("is_r1", false)
+                            put("mmap_dir", "")
+                            put("keep_history", keepHistory)
+                        }
+                    ) // configJsonStr
+                )
+                continuation.resume(ptr)
+            } catch (e: Exception) {
+                continuation.resumeWithException(e)
+            }
         }
-
-        // 防御：空文本直接完成
-        if (fullText.isBlank()) {
-            emit(ChatEvent.Done)
-            return@flow
+    }
+    
+    private suspend fun loadModel() {
+        if (nativePtr == 0L) throw IllegalStateException("模型会话未初始化")
+        
+        suspendCancellableCoroutine<Unit> { continuation ->
+            Thread {
+                try {
+                    modelLoading = true
+                    // 模型已经在initializeModelSession中通过initNative加载
+                    modelLoading = false
+                    
+                    if (releaseRequested) {
+                        releaseInner()
+                    }
+                    continuation.resume(Unit)
+                } catch (e: Exception) {
+                    modelLoading = false
+                    continuation.resumeWithException(e)
+                }
+            }.start()
         }
-
-        // 将文本按固定长度分片，避免UI出现过长单块导致滚动不平滑
-        val chunkSize = 32 // 适度的小块，确保流式体验
-        var index = 0
-        delay(2000)
-
-        while (index < fullText.length) {
-            val end = (index + chunkSize).coerceAtMost(fullText.length)
-            val chunk = fullText.substring(index, end)
-            emit(ChatEvent.Chunk(chunk))
-            // 轻微延迟，模拟推理时间
-            delay(40)
-            index = end
+    }
+    
+    private suspend fun generateResponse(prompt: String): String {
+        if (nativePtr == 0L) throw IllegalStateException("模型会话未初始化")
+        
+        return suspendCancellableCoroutine { continuation ->
+            val responseBuilder = StringBuilder()
+            
+            Thread {
+                try {
+                    val params = HashMap<String, Any>()
+                    val result = submitNative(
+                        nativePtr,
+                        prompt,
+                        keepHistory,
+                        object : GenerateProgressListener {
+                            override fun onProgress(progress: String?): Boolean {
+                                if (!progress.isNullOrEmpty()) {
+                                    responseBuilder.append(progress)
+                                }
+                                // 返回false表示继续生成
+                                return false
+                            }
+                        }
+                    )
+                    
+                    continuation.resume(responseBuilder.toString())
+                } catch (e: Exception) {
+                    continuation.resumeWithException(e)
+                }
+            }.start()
+        }
+    }
+    
+    private fun releaseInner() {
+        if (nativePtr != 0L) {
+            releaseNative(nativePtr)
+            nativePtr = 0
+        }
+    }
+    
+    fun release() {
+        synchronized(this) {
+            Log.d(
+                TAG,
+                "MNN_DEBUG release nativePtr: $nativePtr mGenerating: $generating"
+            )
+            if (!generating && !modelLoading) {
+                releaseInner()
+            } else {
+                releaseRequested = true
+                while (generating || modelLoading) {
+                    try {
+                        (this as Object).wait()
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        Log.e(TAG, "Thread interrupted while waiting for release", e)
+                    }
+                }
+                releaseInner()
+            }
         }
         // 结束事件
         delay(60)
         emit(ChatEvent.Done)
+    }
+    
+    private external fun initNative(
+        configPath: String?,
+        history: List<String>?,
+        mergedConfigStr: String?,
+        configJsonStr: String?
+    ): Long
+
+    private external fun submitNative(
+        instanceId: Long,
+        input: String,
+        keepHistory: Boolean,
+        listener: GenerateProgressListener
+    ): HashMap<String, Any>
+
+    private external fun releaseNative(instanceId: Long)
+    
+    interface GenerateProgressListener {
+        fun onProgress(progress: String?): Boolean
     }
 }
