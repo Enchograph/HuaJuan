@@ -23,20 +23,22 @@ data class OpenAiRequest(
 )
 
 // 注意：这里的Message类与Repository中的Message类不同
+// 支持多模态内容（文本和图片）
 data class Message(
     val role: String,
-    val content: Any // 支持字符串或内容数组，用于图片内容
+    val content: Any // 支持字符串或内容数组
 )
 
-// 内容项数据类 - 支持文本和图片
-sealed class Content {
-    data class Text(val text: String) : Content()
-    data class ImageUrl(val imageUrl: ImageData) : Content()
-}
+// 内容项数据类（支持文本和图片）
+data class ContentItem(
+    val type: String, // "text" 或 "image_url"
+    val text: String? = null,
+    val image_url: ImageUrl? = null
+)
 
-data class ImageData(
-    val url: String, // 图片URL，可以是base64编码或远程URL
-    val detail: String = "auto" // 图片细节级别：auto, low, high
+// 图片URL数据类
+data class ImageUrl(
+    val url: String
 )
 
 // 响应数据类
@@ -52,8 +54,14 @@ data class OpenAiResponse(
 
 data class Choice(
     val index: Int,
-    val message: Message,
+    val message: MessageResponse,
     val finishReason: String
+)
+
+// 用于响应的消息类，专门处理AI返回的内容
+data class MessageResponse(
+    val role: String,
+    val content: String // 简化为String类型，避免循环引用
 )
 
 data class Usage(
@@ -61,3 +69,28 @@ data class Usage(
     val completionTokens: Int?,
     val totalTokens: Int?
 )
+
+// 便利构造函数，用于创建仅文本的消息
+fun createTextMessage(role: String, content: String): Message {
+    return Message(role, content)
+}
+
+// 便利构造函数，用于创建带图片的消息
+fun createImageMessage(role: String, text: String, imageUris: List<String>): Message {
+    val contentList = mutableListOf<ContentItem>()
+    // 添加文本内容
+    contentList.add(ContentItem(type = "text", text = text))
+    
+    // 添加图片内容
+    for (imageUri in imageUris) {
+        // 对于本地文件，需要先上传或转换为base64
+        val imageUrl = if (imageUri.startsWith("http") || imageUri.startsWith("data:")) {
+            imageUri  // 已经是URL或data URL
+        } else {
+            imageUri
+        }
+        contentList.add(ContentItem(type = "image_url", image_url = ImageUrl(url = imageUrl)))
+    }
+    
+    return Message(role, contentList)
+}

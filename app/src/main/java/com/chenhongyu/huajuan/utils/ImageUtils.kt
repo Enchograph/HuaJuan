@@ -1,65 +1,122 @@
 package com.chenhongyu.huajuan.utils
 
 import android.content.Context
-import android.content.ContentUris
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.provider.MediaStore
-import androidx.core.content.ContextCompat
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import com.chenhongyu.huajuan.ImageItem
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.InputStream
 
-/**
- * 获取相册图片列表的工具函数
- */
-suspend fun getImageList(context: Context): List<ImageItem> {
-    val imageList = mutableListOf<ImageItem>()
-    val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-    val projection = arrayOf(
-        MediaStore.Images.Media._ID,
-        MediaStore.Images.Media.DISPLAY_NAME,
-        MediaStore.Images.Media.DATE_ADDED
-    )
-    val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+object ImageUtils {
     
-    try {
-        context.contentResolver.query(uri, projection, null, null, sortOrder)?.use { cursor ->
-            val idColumn = cursor.getColumnIndex(MediaStore.Images.Media._ID)
-            val nameColumn = cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
-            val dateColumn = cursor.getColumnIndex(MediaStore.Images.Media.DATE_ADDED)
-            
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val name = cursor.getString(nameColumn)
-                val date = cursor.getLong(dateColumn)
-                
-                val contentUri = ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id
-                )
-                
-                imageList.add(ImageItem(id.toString(), contentUri.toString(), name, date))
+    /**
+     * 将图片文件转换为base64编码的data URL
+     */
+    fun convertImageToDataUrl(context: Context, imagePath: String): String? {
+        return try {
+            val bitmap = if (imagePath.startsWith("content://")) {
+                // 如果是内容URI，使用ContentResolver获取
+                val uri = Uri.parse(imagePath)
+                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            } else {
+                // 如果是文件路径，直接加载
+                BitmapFactory.decodeFile(imagePath)
             }
+            
+            if (bitmap != null) {
+                val outputStream = ByteArrayOutputStream()
+                // 压缩图片以减少大小
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                val imageBytes = outputStream.toByteArray()
+                val base64String = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+                
+                // 关闭流
+                outputStream.close()
+                
+                // 返回data URL格式
+                "data:image/jpeg;base64,$base64String"
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
-    } catch (e: Exception) {
-        e.printStackTrace()
     }
+    
+    /**
+     * 将图片URI转换为base64编码的data URL
+     */
+    fun convertUriToDataUrl(context: Context, uri: Uri): String? {
+        return try {
+            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            
+            if (bitmap != null) {
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                val imageBytes = outputStream.toByteArray()
+                val base64String = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+                
+                // 关闭流
+                inputStream?.close()
+                outputStream.close()
+                
+                // 返回data URL格式
+                "data:image/jpeg;base64,$base64String"
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+    
+    /**
+     * 从URI获取真实的文件路径
+     */
+    fun getRealPathFromUri(context: Context, uri: Uri): String? {
+        return try {
+            val projection = arrayOf(MediaStore.Images.Media.DATA)
+            val cursor = context.contentResolver.query(uri, projection, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val columnIndex = it.getColumnIndex(MediaStore.Images.Media.DATA)
+                    if (columnIndex >= 0) {
+                        return@use it.getString(columnIndex)
+                    }
+                }
+            }
+            // 如果无法通过MediaStore获取路径，复制文件到应用私有目录
+            copyFileToInternalStorage(context, uri)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+    
+    /**
+     * 复制文件到内部存储
+     */
+    private fun copyFileToInternalStorage(context: Context, uri: Uri): String? {
+        return try {
+            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            val outputFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+            val outputStream = java.io.FileOutputStream(outputFile)
 
-    return imageList.take(10) // 只取最新的10张图片
-}
+            inputStream?.use { input ->
+                outputStream.use { output ->
+                    input.copyTo(output)
+                }
+            }
 
-/**
- * 检查是否有读取媒体图片的权限
- */
-fun hasReadStoragePermission(context: Context): Boolean {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_MEDIA_IMAGES
-        ) == PackageManager.PERMISSION_GRANTED
-    } else {
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        ) == PackageManager.PERMISSION_GRANTED
+            outputFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }

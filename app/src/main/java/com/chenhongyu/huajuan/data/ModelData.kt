@@ -82,6 +82,8 @@ class ModelDataProvider(private val repository: Repository) {
                 "硅基流动",
                 "https://api.siliconflow.cn/v1/chat/completions/",
                 listOf(
+
+                    ModelInfo("Qwen-Image", "Qwen/Qwen-Image"),
                     ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2"),
                     ModelInfo("DeepSeek-V3.1-Terminus", "deepseek-ai/DeepSeek-V3.1-Terminus"),
                     ModelInfo("DeepSeek-V3.2-Exp", "deepseek-ai/DeepSeek-V3.2-Exp"),
@@ -112,19 +114,35 @@ class ModelDataProvider(private val repository: Repository) {
                     ModelInfo("Qwen2.5-VL-72B-Instruct", "Qwen/Qwen2.5-VL-72B-Instruct")
                 )
             ),
+            "硅基流动-生图" to ServiceProviderInfo(
+                "硅基流动-生图",
+                "https://api.siliconflow.cn/v1/images/generations/",
+                listOf(
+
+                    ModelInfo("Qwen-Image", "Qwen/Qwen-Image"),
+                    ModelInfo("Qwen-Image-Edit-2509", "Qwen/Qwen-Image-Edit-2509"),
+                )
+            ),
             "火山引擎" to ServiceProviderInfo(
                 "火山引擎",
                 "https://ark.cn-beijing.volces.com/api/v3/chat/completions/",
                 listOf(
-                    ModelInfo("Seedream 4.5", "Doubao-Seedream-4.5"),
-                    ModelInfo("Seedream 4.0", "Doubao-Seedream-4.0"),
+                    ModelInfo("全自动接入点", "ep-20251224183036-ht9sd"),
                     ModelInfo("DeepSeek-V3.1", "DeepSeek-V3.1"),
-                    ModelInfo("Kimi-K2", "Kimi-K2"),
+                    ModelInfo("Kimi-K2", "kimi-k2-thinking-251104"),
                     ModelInfo("DeepSeek-R1", "DeepSeek-R1"),
                     ModelInfo("DeepSeek-V3", "DeepSeek-V3"),
-                    ModelInfo("Seedream 3.0", "Doubao-Seedream-3.0-t2i"),
                     ModelInfo("Doubao-1.5-pro", "Doubao-1.5-pro-32k"),
                     ModelInfo("Doubao-1.5-lite", "Doubao-1.5-lite-32k")
+                )
+            ),
+            "豆包生图" to ServiceProviderInfo(
+                "豆包生图",
+                "https://ark.cn-beijing.volces.com/api/v3/images/generations/",
+                listOf(
+                    ModelInfo("Seedream 4.5", "ep-20251224183505-qkhjf"),
+                    ModelInfo("Seedream 4.0", "doubao-seedream-4-0-250828"),
+                    ModelInfo("Seedream 3.0", "Doubao-Seedream-3.0-t2i"),
                 )
             ),
             "SoruxGPT" to ServiceProviderInfo(

@@ -11,12 +11,22 @@ class ModelApiFactory(private val repository: Repository) {
      * @return ModelApiService 实例
      */
     fun createModelApiService(): ModelApiService {
-        return if (repository.getUseCloudModel()) {
-            // 使用在线模型
-            OnlineModelApiService(repository)
-        } else {
-            // 使用本地模型
-            LocalModelApiService(repository)
+        val useCloud = repository.getUseCloudModel()
+        val serviceProvider = repository.getServiceProvider()
+        
+        return when {
+            // 检查是否是图像生成服务提供商
+            serviceProvider.contains("生图") || serviceProvider.contains("images/generations") -> {
+                ImageGenerationApiService(repository)
+            }
+            useCloud -> {
+                // 使用在线模型
+                OnlineModelApiService(repository)
+            }
+            else -> {
+                // 使用本地模型
+                LocalModelApiService(repository)
+            }
         }
     }
     

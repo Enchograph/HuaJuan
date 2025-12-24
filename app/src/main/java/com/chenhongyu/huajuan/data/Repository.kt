@@ -463,8 +463,14 @@ class Repository(private val context: Context) {
         val predefinedUrl = modelDataProvider.getApiUrlForProvider(serviceProvider)
         if (predefinedUrl.isNotEmpty()) {
             // 预定义的服务商URL已经是正确的格式，直接返回
-            // 确保URL以斜杠结尾（满足Retrofit要求）
-            return if (predefinedUrl.endsWith("/")) predefinedUrl else "$predefinedUrl/"
+            // 检查是否是图像生成服务提供商
+            if (serviceProvider.contains("生图") || serviceProvider.contains("images/generations")) {
+                // 对于图像生成服务，返回基础URL，不添加额外路径
+                return if (predefinedUrl.endsWith("/")) predefinedUrl else "$predefinedUrl/"
+            } else {
+                // 对于聊天完成服务，确保URL以斜杠结尾（满足Retrofit要求）
+                return if (predefinedUrl.endsWith("/")) predefinedUrl else "$predefinedUrl/"
+            }
         }
         
         // 对于自定义服务提供商，使用存储的URL并进行规范化处理
@@ -536,63 +542,76 @@ class Repository(private val context: Context) {
             }
             println("DEBUG: getAIResponse resolved modelInfo.displayName='${modelInfo.displayName}', apiCode='${modelInfo.apiCode}'")
             val systemPrompt = getConversationSystemPrompt(conversationId)
-            val networkMessages = listOf(
-                com.chenhongyu.huajuan.network.Message(
-                    role = "system",
-                    content = systemPrompt
+            
+            // 检查是否是图像生成服务
+            val isImageGenerationService = serviceProvider.contains("生图") || serviceProvider.contains("images/generations")
+            
+            // 创建网络消息，支持图片内容
+            val networkMessages = if (isImageGenerationService) {
+                // 对于图像生成服务，将所有用户消息合并为一个提示词，不需要系统提示词
+                val userMessages = messages.filter { it.isUser }
+                if (userMessages.isNotEmpty()) {
+                    val allTexts = userMessages.joinToString(" ") { it.text }.trim().ifEmpty { "" }
+                    val allImageUris = userMessages.flatMap { it.imageUris }.distinct()
+                    
+                    if (allImageUris.isNotEmpty()) {
+                        // 如果有任何图像，创建包含文本和图像的消息
+                        listOf(com.chenhongyu.huajuan.network.createImageMessage(
+                            role = "user",
+                            text = allTexts,
+                            imageUris = allImageUris
+                        ))
+                    } else {
+                        // 如果没有图像，创建纯文本消息
+                        listOf(com.chenhongyu.huajuan.network.Message(
+                            role = "user",
+                            content = allTexts
+                        ))
+                    }
+                } else {
+                    // 如果没有用户消息，使用空消息
+                    listOf(com.chenhongyu.huajuan.network.Message(
+                        role = "user",
+                        content = ""
+                    ))
+                }
+            } else {
+                // 对于聊天服务，包含系统提示词和所有消息
+                val networkMessages = mutableListOf<com.chenhongyu.huajuan.network.Message>()
+                networkMessages.add(
+                    com.chenhongyu.huajuan.network.Message(
+                        role = "system",
+                        content = systemPrompt
+                    )
                 )
-            ) + convertToNetworkMessages(messages)
+                
+                // 将本地Message对象转换为网络Message对象，处理图片
+                for (message in messages) {
+                    if (message.imageUris.isNotEmpty()) {
+                        // 如果消息包含图片，使用多模态构造函数
+                        networkMessages.add(
+                            com.chenhongyu.huajuan.network.createImageMessage(
+                                role = if (message.isUser) "user" else "assistant",
+                                text = message.text,
+                                imageUris = message.imageUris
+                            )
+                        )
+                    } else {
+                        // 如果消息不包含图片，使用普通构造函数
+                        networkMessages.add(
+                            com.chenhongyu.huajuan.network.Message(
+                                role = if (message.isUser) "user" else "assistant",
+                                content = message.text
+                            )
+                        )
+                    }
+                }
+                networkMessages
+            }
+            
             return modelApiService.getAIResponse(networkMessages, modelInfo)
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
-        }
-    }
-
-    // 将本地Message转换为网络Message，支持图片内容
-    private fun convertToNetworkMessages(messages: List<Message>): List<com.chenhongyu.huajuan.network.Message> {
-        return messages.map { message ->
-            if (message.imageUris.isNotEmpty()) {
-                // 如果消息包含图片，创建内容数组
-                val contentItems = mutableListOf<com.chenhongyu.huajuan.network.Content>()
-                
-                // 添加文本内容（如果存在）
-                if (message.text.isNotEmpty()) {
-                    contentItems.add(com.chenhongyu.huajuan.network.Content.Text(message.text))
-                }
-                
-                // 添加图片内容
-                message.imageUris.forEach { imageUri ->
-                    // 尝试将图片URI转换为base64或直接使用URI
-                    val imageUrl = if (imageUri.startsWith("http")) {
-                        imageUri // 如果已经是URL，直接使用
-                    } else {
-                        // 如果是本地URI，需要转换为base64或处理为可访问的URL
-                        // 这里先使用file://格式，实际实现中可能需要转换为base64
-                        "file://$imageUri"
-                    }
-                    contentItems.add(com.chenhongyu.huajuan.network.Content.ImageUrl(
-                        com.chenhongyu.huajuan.network.ImageData(url = imageUrl)
-                    ))
-                }
-                
-                // 如果只有一个文本项，直接使用字符串格式
-                val content: Any = if (contentItems.size == 1 && contentItems[0] is com.chenhongyu.huajuan.network.Content.Text) {
-                    (contentItems[0] as com.chenhongyu.huajuan.network.Content.Text).text
-                } else {
-                    contentItems
-                }
-                
-                com.chenhongyu.huajuan.network.Message(
-                    role = if (message.isUser) "user" else "assistant",
-                    content = content
-                )
-            } else {
-                // 没有图片，使用简单文本格式
-                com.chenhongyu.huajuan.network.Message(
-                    role = if (message.isUser) "user" else "assistant",
-                    content = message.text
-                )
-            }
         }
     }
 
@@ -617,12 +636,72 @@ class Repository(private val context: Context) {
         }
         println("DEBUG: Resolved modelInfo.displayName='${modelInfo.displayName}', apiCode='${modelInfo.apiCode}'")
         val systemPrompt = getConversationSystemPrompt(conversationId)
-        val networkMessages = listOf(
-            com.chenhongyu.huajuan.network.Message(
-                role = "system",
-                content = systemPrompt
+        
+        // 检查是否是图像生成服务
+        val isImageGenerationService = serviceProvider.contains("生图") || serviceProvider.contains("images/generations")
+        
+        // 创建网络消息，支持图片内容
+        val networkMessages = if (isImageGenerationService) {
+            // 对于图像生成服务，将所有用户消息合并为一个提示词，不需要系统提示词
+            val userMessages = messages.filter { it.isUser }
+            if (userMessages.isNotEmpty()) {
+                val allTexts = userMessages.joinToString(" ") { it.text }.trim().ifEmpty { "" }
+                val allImageUris = userMessages.flatMap { it.imageUris }.distinct()
+                
+                if (allImageUris.isNotEmpty()) {
+                    // 如果有任何图像，创建包含文本和图像的消息
+                    listOf(com.chenhongyu.huajuan.network.createImageMessage(
+                        role = "user",
+                        text = allTexts,
+                        imageUris = allImageUris
+                    ))
+                } else {
+                    // 如果没有图像，创建纯文本消息
+                    listOf(com.chenhongyu.huajuan.network.Message(
+                        role = "user",
+                        content = allTexts
+                    ))
+                }
+            } else {
+                // 如果没有用户消息，使用空消息
+                listOf(com.chenhongyu.huajuan.network.Message(
+                    role = "user",
+                    content = ""
+                ))
+            }
+        } else {
+            // 对于聊天服务，包含系统提示词和所有消息
+            val networkMessages = mutableListOf<com.chenhongyu.huajuan.network.Message>()
+            networkMessages.add(
+                com.chenhongyu.huajuan.network.Message(
+                    role = "system",
+                    content = systemPrompt
+                )
             )
-        ) + convertToNetworkMessages(messages)
+            
+            // 将本地Message对象转换为网络Message对象，处理图片
+            for (message in messages) {
+                if (message.imageUris.isNotEmpty()) {
+                    // 如果消息包含图片，使用多模态构造函数
+                    networkMessages.add(
+                        com.chenhongyu.huajuan.network.createImageMessage(
+                            role = if (message.isUser) "user" else "assistant",
+                            text = message.text,
+                            imageUris = message.imageUris
+                        )
+                    )
+                } else {
+                    // 如果消息不包含图片，使用普通构造函数
+                    networkMessages.add(
+                        com.chenhongyu.huajuan.network.Message(
+                            role = if (message.isUser) "user" else "assistant",
+                            content = message.text
+                        )
+                    )
+                }
+            }
+            networkMessages
+        }
 
         return modelApiService.streamAIResponse(networkMessages, modelInfo)
     }

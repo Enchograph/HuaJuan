@@ -672,7 +672,7 @@ fun ChatContentArea(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    items(message.imageUris) { uri ->
+                                    items(message.imageUris) { uri -> 
                                         AsyncImage(
                                             model = uri,
                                             contentDescription = "AI image response",
@@ -896,7 +896,7 @@ fun ChatContentArea(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    items(message.imageUris) { uri ->
+                                    items(message.imageUris) { uri -> 
                                         AsyncImage(
                                             model = uri,
                                             contentDescription = "User image",
