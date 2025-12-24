@@ -36,6 +36,9 @@ class Repository(private val context: Context) {
     private val conversationDao = database.conversationDao()
     private val messageDao = database.messageDao()
     
+    // 模型管理器
+    private val modelManager = ModelManager(context)
+    
     /**
      * 获取暗色模式设置
      */
@@ -826,11 +829,41 @@ class Repository(private val context: Context) {
 
     fun getLocalSelectedModel(): String {
         // 本地模型默认选择为 Qwen3-0.6B-MNN
-        return prefs.getString("local_selected_model", "Qwen3-0.6B-MNN") ?: "Qwen3-0.6B-MNN"
+        val selectedModel = prefs.getString("local_selected_model", "Qwen3-0.6B-MNN") ?: "Qwen3-0.6B-MNN"
+        // 如果选中的模型不在本地模型列表中，返回列表中的第一个模型
+        val localModels = getLocalModelList()
+        return if (localModels.any { it.displayName == selectedModel }) {
+            selectedModel
+        } else {
+            localModels.firstOrNull()?.displayName ?: "Qwen3-0.6B-MNN"
+        }
     }
 
     fun setLocalSelectedModel(model: String) {
         prefs.edit().putString("local_selected_model", model).apply()
+    }
+
+    /**
+     * 获取本地模型路径
+     */
+    fun getLocalModelPath(modelName: String): String {
+        // 使用ModelManager获取模型路径
+        return modelManager.getModelPath(modelName)
+    }
+
+    /**
+     * 获取本地模型列表
+     */
+    fun getLocalModelList(): List<ModelInfo> {
+        // 使用ModelManager获取本地模型列表
+        return modelManager.getLocalModels()
+    }
+
+    /**
+     * 获取Context
+     */
+    fun getContext(): Context {
+        return context
     }
 
 }

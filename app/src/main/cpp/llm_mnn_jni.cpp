@@ -31,7 +31,7 @@ JNIEXPORT void JNI_OnUnload(JavaVM *vm, void *reserved) {
     __android_log_print(ANDROID_LOG_DEBUG, "MNN_DEBUG", "JNI_OnUnload");
 }
 
-JNIEXPORT jlong JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_initNative(JNIEnv *env,
+JNIEXPORT jlong JNICALL Java_com_chenhongyu_huajuan_network_LlmSession_initNative(JNIEnv *env,
                                                                                   jobject thiz,
                                                                                   jstring modelDir,
                                                                                   jobject chat_history,
@@ -71,7 +71,7 @@ JNIEXPORT jlong JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_initNativ
 }
 
 
-JNIEXPORT jobject JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_submitNative(JNIEnv *env,
+JNIEXPORT jobject JNICALL Java_com_chenhongyu_huajuan_network_LlmSession_submitNative(JNIEnv *env,
                                                                                       jobject thiz,
                                                                                       jlong llmPtr,
                                                                                       jstring inputStr,
@@ -150,7 +150,7 @@ JNIEXPORT jobject JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_submitN
 
 
 // 新增：支持完整历史消息的JNI方法
-JNIEXPORT jobject JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_submitFullHistoryNative(
+JNIEXPORT jobject JNICALL Java_com_chenhongyu_huajuan_network_LlmSession_submitFullHistoryNative(
         JNIEnv *env,
         jobject thiz,
         jlong llmPtr,
@@ -293,7 +293,7 @@ JNIEXPORT jobject JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_submitF
 
 
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_resetNative(JNIEnv *env, jobject thiz,
+Java_com_chenhongyu_huajuan_network_LlmSession_resetNative(JNIEnv *env, jobject thiz,
                                                            jlong object_ptr) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(object_ptr);
     if (llm) {
@@ -304,7 +304,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_resetNative(JNIEnv *env, jobject 
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_setWavformCallbackNative(
+Java_com_chenhongyu_huajuan_network_LlmSession_setWavformCallbackNative(
         JNIEnv *env, jobject thiz, jlong instance_id, jobject listener) {
 
     if (instance_id == 0 || !listener) {
@@ -343,7 +343,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_setWavformCallbackNative(
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_getDebugInfoNative(JNIEnv *env, jobject thiz,
+Java_com_chenhongyu_huajuan_network_LlmSession_getDebugInfoNative(JNIEnv *env, jobject thiz,
                                                                   jlong objecPtr) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(objecPtr);
     if (llm == nullptr) {
@@ -352,7 +352,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_getDebugInfoNative(JNIEnv *env, j
     return env->NewStringUTF(llm->getDebugInfo().c_str());
 }
 
-JNIEXPORT void JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_releaseNative(JNIEnv *env,
+JNIEXPORT void JNICALL Java_com_chenhongyu_huajuan_network_LlmSession_releaseNative(JNIEnv *env,
                                                                                     jobject thiz,
                                                                                     jlong objecPtr) {
     MNN_DEBUG("LIFECYCLE: About to DESTROY LlmSession at %p", reinterpret_cast<void*>(objecPtr));
@@ -363,7 +363,7 @@ JNIEXPORT void JNICALL Java_com_alibaba_mnnllm_android_llm_LlmSession_releaseNat
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_updateMaxNewTokensNative(JNIEnv *env, jobject thiz,
+Java_com_chenhongyu_huajuan_network_LlmSession_updateMaxNewTokensNative(JNIEnv *env, jobject thiz,
                                                                         jlong llm_ptr,
                                                                         jint max_new_tokens) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(llm_ptr);
@@ -374,7 +374,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_updateMaxNewTokensNative(JNIEnv *
 }
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_updateSystemPromptNative(JNIEnv *env, jobject thiz,
+Java_com_chenhongyu_huajuan_network_LlmSession_updateSystemPromptNative(JNIEnv *env, jobject thiz,
                                                                         jlong llm_ptr,
                                                                         jstring system_promp_j) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(llm_ptr);
@@ -387,7 +387,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_updateSystemPromptNative(JNIEnv *
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_updateAssistantPromptNative(JNIEnv *env,
+Java_com_chenhongyu_huajuan_network_LlmSession_updateAssistantPromptNative(JNIEnv *env,
                                                                            jobject thiz,
                                                                            jlong llm_ptr,
                                                                            jstring assistant_prompt_j) {
@@ -401,7 +401,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_updateAssistantPromptNative(JNIEn
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_updateConfigNative(JNIEnv *env,
+Java_com_chenhongyu_huajuan_network_LlmSession_updateConfigNative(JNIEnv *env,
                                                                  jobject thiz,
                                                                  jlong llm_ptr,
                                                                  jstring config_json_j) {
@@ -415,7 +415,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_updateConfigNative(JNIEnv *env,
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_updateEnableAudioOutputNative(JNIEnv *env,jobject thiz, jlong llm_ptr, jboolean enable) {
+Java_com_chenhongyu_huajuan_network_LlmSession_updateEnableAudioOutputNative(JNIEnv *env,jobject thiz, jlong llm_ptr, jboolean enable) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(llm_ptr);
     if (llm) {
         llm->enableAudioOutput((bool)enable);
@@ -425,7 +425,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_updateEnableAudioOutputNative(JNI
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_getSystemPromptNative(JNIEnv *env, jobject thiz,
+Java_com_chenhongyu_huajuan_network_LlmSession_getSystemPromptNative(JNIEnv *env, jobject thiz,
                                                                      jlong llm_ptr) {
     auto *llm = reinterpret_cast<mls::LlmSession *>(llm_ptr);
     if (llm) {
@@ -449,7 +449,7 @@ Java_com_alibaba_mnnllm_android_llm_LlmSession_clearHistoryNative(JNIEnv *env, j
 // JNI glue layer - converts Java objects and delegates to pure C++ implementation
 extern "C"
 JNIEXPORT jobject JNICALL
-Java_com_alibaba_mnnllm_android_llm_LlmSession_runBenchmarkNative(
+Java_com_chenhongyu_huajuan_network_LlmSession_runBenchmarkNative(
         JNIEnv *env,
         jobject thiz,
         jlong llmPtr,

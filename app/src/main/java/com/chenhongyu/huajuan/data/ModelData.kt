@@ -4,7 +4,8 @@ import android.content.Context
 
 data class ModelInfo(
     val displayName: String,
-    val apiCode: String
+    val apiCode: String,
+    val modelPath: String = ""  // 本地模型路径，对于云端模型可以为空
 )
 
 data class ServiceProviderInfo(

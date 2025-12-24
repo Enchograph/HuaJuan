@@ -10,6 +10,7 @@ android {
     compileSdk {
         version = release(36)
     }
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.chenhongyu.huajuan"
@@ -19,6 +20,17 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // 配置NDK和CMake
+        externalNativeBuild {
+            cmake {
+                cppFlags("-std=c++17")
+                arguments("-DANDROID_STL=c++_shared")
+            }
+        }
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -39,6 +51,16 @@ android {
     }
     buildFeatures {
         compose = true
+        // 启用viewBinding以支持原生库调用
+        viewBinding = true
+    }
+    
+    // 配置外部原生构建
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 

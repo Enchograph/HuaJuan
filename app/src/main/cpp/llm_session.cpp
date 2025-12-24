@@ -88,12 +88,79 @@ LlmSession::LlmSession(std::string model_path, json config, json extra_config, s
 }
 
 void LlmSession::Load() {
-    std::string root_cache_dir_str = extra_config_["mmap_dir"];
-    bool use_mmap = !extra_config_["mmap_dir"].get<std::string>().empty();
+    std::string root_cache_dir_str = extra_config_.contains("mmap_dir") && !extra_config_["mmap_dir"].is_null() ? 
+        extra_config_["mmap_dir"].get<std::string>() : "";
+    bool use_mmap = !root_cache_dir_str.empty();
     MNN::BackendConfig backendConfig;
     auto executor = MNN::Express::Executor::newExecutor(MNN_FORWARD_CPU, backendConfig, 1);
     MNN::Express::ExecutorScope s(executor);
-    llm_ = Llm::createLLM(model_path_);
+    
+    // 构建完整的模型文件路径
+    std::string model_file_path = model_path_;
+    
+    // 检查传入的路径是否已经是完整的模型文件路径（包含以.mnn结尾的文件名）
+    // 通过检查路径的最后部分来判断
+    size_t lastSlashPos = model_file_path.find_last_of('/');
+    std::string fileName = (lastSlashPos != std::string::npos) ? 
+                          model_file_path.substr(lastSlashPos + 1) : model_file_path;
+    
+    // 如果文件名以".mnn"结尾，说明传入的是完整文件路径，不需要添加后缀
+    // 否则认为传入的是目录路径，需要添加"llm.mnn"
+    if (fileName.length() >= 4 && fileName.substr(fileName.length() - 4) == ".mnn") {
+        // 已经是完整的文件路径
+        MNN_DEBUG("Using provided full file path: %s", model_file_path.c_str());
+    } else {
+        // 是目录路径，需要添加文件名
+        if (model_path_.back() != '/') {
+            model_file_path += "/llm.mnn";
+        } else {
+            model_file_path += "llm.mnn";
+        }
+        MNN_DEBUG("Constructed file path from directory: %s", model_file_path.c_str());
+    }
+    
+    MNN_DEBUG("Attempting to load model from path: %s", model_file_path.c_str());
+    
+    // 验证模型文件是否存在且可读
+    std::ifstream model_file(model_file_path, std::ios::binary);
+    if (!model_file.good()) {
+        MNN_ERROR("LlmSession: Model file does not exist or is not accessible: %s", model_file_path.c_str());
+        return;
+    }
+    
+    // 获取文件大小并验证
+    model_file.seekg(0, std::ios::end);
+    std::streamsize file_size = model_file.tellg();
+    model_file.close();
+    
+    MNN_DEBUG("Model file size: %ld bytes", file_size);
+    
+    // 检查文件大小是否合理（至少应该有几KB）
+    if (file_size < 1024) {  // 至少1KB
+        MNN_ERROR("LlmSession: Model file appears to be too small to be valid: %s, size: %ld bytes", 
+                  model_file_path.c_str(), file_size);
+        return;
+    }
+    
+    try {
+        llm_ = Llm::createLLM(model_file_path);  // 使用模型文件的完整路径
+    } catch (const std::exception& e) {
+        MNN_ERROR("LlmSession: Exception occurred while creating LLM instance for model file: %s, error: %s", 
+                  model_file_path.c_str(), e.what());
+        llm_ = nullptr;
+        return;
+    } catch (...) {
+        MNN_ERROR("LlmSession: Unknown exception occurred while creating LLM instance for model file: %s", 
+                  model_file_path.c_str());
+        llm_ = nullptr;
+        return;
+    }
+    
+    if (!llm_) {
+        MNN_ERROR("LlmSession: Failed to create LLM instance for model file: %s", model_file_path.c_str());
+        return; // 退出加载过程，避免后续对空指针的操作
+    }
+    
     json config = config_;
     config["use_mmap"] = use_mmap;
     if (use_mmap) {
@@ -107,9 +174,18 @@ void LlmSession::Load() {
     current_config_ = config;
     auto config_str = config.dump();
     MNN_DEBUG("extra_config: %s", config_str.c_str());
-    llm_->set_config(config_str);
-    MNN_DEBUG("dumped config: %s", llm_->dump_config().c_str());
-    llm_->load();
+    
+    try {
+        llm_->set_config(config_str);
+        MNN_DEBUG("dumped config: %s", llm_->dump_config().c_str());
+        llm_->load();
+    } catch (const std::exception& e) {
+        MNN_ERROR("LlmSession: Exception occurred during model loading: %s", e.what());
+        return;
+    } catch (...) {
+        MNN_ERROR("LlmSession: Unknown exception occurred during model loading");
+        return;
+    }
 }
 
 LlmSession::~LlmSession() {
@@ -171,17 +247,21 @@ const MNN::Transformer::LlmContext * LlmSession::Response(const std::string &pro
         prompt_string_for_debug += it.second;
     }
     MNN_DEBUG("submitNative prompt_string_for_debug count %s max_new_tokens_:%d", prompt_string_for_debug.c_str(), max_new_tokens_);
-    llm_->response(history_, &output_ostream, "<eop>", 1);
+    if (llm_) {
+        llm_->response(history_, &output_ostream, "<eop>", 1);
+    } else {
+        MNN_ERROR("LlmSession: LLM instance is null in Response");
+        return nullptr;
+    }
     current_size++;
-    while (!stop_requested_ && !generate_text_end_ && current_size < max_new_tokens_) {
+    while (!stop_requested_ && !generate_text_end_ && current_size < max_new_tokens_ && llm_) {
         llm_->generate(1);
         current_size++;
     }
-    if (!stop_requested_ && enable_audio_output_) {
+    if (!stop_requested_ && enable_audio_output_ && llm_) {
         llm_->generateWavform();
     }
-    auto context = llm_->getContext();
-    return context;
+    return llm_ ? llm_->getContext() : nullptr;
 }
 
 std::string LlmSession::getDebugInfo() {
@@ -232,8 +312,8 @@ void LlmSession::SetAssistantPrompt(const std::string& assistant_prompt) {
     current_config_["assistant_prompt_template"] = assistant_prompt;
     if (llm_) {
         llm_->set_config(current_config_.dump());
+        MNN_DEBUG("dumped config: %s", llm_->dump_config().c_str());
     }
-    MNN_DEBUG("dumped config: %s", llm_->dump_config().c_str());
 }
 
 void LlmSession::updateConfig(const std::string& config_json) {
@@ -314,19 +394,24 @@ void LlmSession::enableAudioOutput(bool enable) {
         }
         MNN_DEBUG("submitNative prompt_string_for_debug:\n%s\nmax_new_tokens_:%d", prompt_string_for_debug.c_str(), max_new_tokens_);
         // 使用临时历史进行推理
-        llm_->response(temp_history, &output_ostream, "<eop>", 1);
+        if (llm_) {
+            llm_->response(temp_history, &output_ostream, "<eop>", 1);
+        } else {
+            MNN_ERROR("LlmSession: LLM instance is null in ResponseWithHistory");
+            return nullptr;
+        }
         current_size++;
 
-        while (!stop_requested_ && !generate_text_end_ && current_size < max_new_tokens_) {
+        while (!stop_requested_ && !generate_text_end_ && current_size < max_new_tokens_ && llm_) {
             llm_->generate(1);
             current_size++;
         }
 
-        if (!stop_requested_ && enable_audio_output_) {
+        if (!stop_requested_ && enable_audio_output_ && llm_) {
             llm_->generateWavform();
         }
 
-        return llm_->getContext();
+        return llm_ ? llm_->getContext() : nullptr;
     }
 
     void LlmSession::clearHistory(int numToKeep) {
@@ -414,13 +499,6 @@ void LlmSession::enableAudioOutput(bool enable) {
 
     // Initialize LLM for benchmark and verify it's ready
     bool LlmSession::initializeLlmForBenchmark(BenchmarkResult& result, const BenchmarkCallback& callback) {
-        // Validate this pointer first
-        if (this == nullptr) {
-            result.error_message = "LlmSession object is null";
-            if (callback.onError) callback.onError(result.error_message);
-            return false;
-        }
-
         // Get underlying Llm object for direct access
         auto *llm = this->getLlm();
         if (!llm) {

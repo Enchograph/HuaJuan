@@ -628,80 +628,48 @@ fun SettingScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                ) {
-                                    ListItem(
-                                        headlineContent = { 
-                                            Text(
-                                                text = "Qwen3-0.6B-MNN",
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            ) 
-                                        },
-                                        supportingContent = { 
-                                            Text(
-                                                text = "已下载",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            ) 
-                                        },
-                                        trailingContent = {
-                                            RadioButton(
-                                                selected = localSelectedModel == "Qwen3-0.6B-MNN",
-                                                onClick = {
-                                                    localSelectedModel = "Qwen3-0.6B-MNN"
-                                                    repository.setLocalSelectedModel("Qwen3-0.6B-MNN")
-                                                    println("选择了Qwen3-0.6B-MNN模型")
-                                                },
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = MaterialTheme.colorScheme.primary,
-                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            )
-                                        }
-                                    )
-                                }
+                                // 使用Repository中的本地模型列表
+                                val localModels = remember { repository.getLocalModelList() }
+                                val currentLocalModel = remember { repository.getLocalSelectedModel() }
                                 
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    )
-                                ) {
-                                    ListItem(
-                                        headlineContent = { 
-                                            Text(
-                                                text = "MobileLLM-125M-MNN",
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            ) 
-                                        },
-                                        supportingContent = { 
-                                            Text(
-                                                text = "已下载",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            ) 
-                                        },
-                                        trailingContent = {
-                                            RadioButton(
-                                                selected = localSelectedModel == "MobileLLM-125M-MNN",
-                                                onClick = {
-                                                    localSelectedModel = "MobileLLM-125M-MNN"
-                                                    repository.setLocalSelectedModel("MobileLLM-125M-MNN")
-                                                    println("选择了MobileLLM-125M-MNN模型")
-                                                },
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = MaterialTheme.colorScheme.primary,
-                                                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                localModels.forEach { model ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surface
+                                        )
+                                    ) {
+                                        ListItem(
+                                            headlineContent = { 
+                                                Text(
+                                                    text = model.displayName,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                ) 
+                                            },
+                                            supportingContent = { 
+                                                Text(
+                                                    text = "已下载",
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ) 
+                                            },
+                                            trailingContent = {
+                                                RadioButton(
+                                                    selected = currentLocalModel == model.displayName,
+                                                    onClick = {
+                                                        localSelectedModel = model.displayName
+                                                        repository.setLocalSelectedModel(model.displayName)
+                                                        println("选择了${model.displayName}模型")
+                                                    },
+                                                    colors = RadioButtonDefaults.colors(
+                                                        selectedColor = MaterialTheme.colorScheme.primary,
+                                                        unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
                                                 )
-                                            )
-                                        }
-                                    )
+                                            }
+                                        )
+                                    }
                                 }
                                 
                                 // 添加新模型按钮
