@@ -1,4 +1,4 @@
-# 花卷 · 一款 AI 一站式调用平台
+# 花卷 · 一款支持本地部署的 AI 一站式调用平台
 
 ## 项目介绍
 
@@ -36,6 +36,13 @@
 
 ## 项目展示
 
+| ![图片1](docs/assets/1.jpg) | ![图片2](docs/assets/2.jpg) | ![图片3](docs/assets/3.jpg) |
+| --- | --- | --- |
+| ![图片4](docs/assets/4.jpg) | ![图片5](docs/assets/5.jpg) | ![图片6](docs/assets/6.jpg) |
+| ![图片7](docs/assets/7.jpg) | ![图片8](docs/assets/8.jpg) | ![图片9](docs/assets/9.jpg) |
+
+
+
 ## 实现方式
 
 ### 云端模型调用
@@ -66,8 +73,6 @@
 本地模型调用通过[LocalModelApiService](https://github.com/Enchograph/HuaJuan/app/src/main/java/com/chenhongyu/huajuan/data/LocalModelApiService.kt)实现，该类继承自ModelApiService接口。
 
 [getAIResponse](https://github.com/Enchograph/HuaJuan/app/src/main/java/com/chenhongyu/huajuan/data/LocalModelApiService.kt)方法实现本地模型的实际调用逻辑。该方法首先加载位于assets/model目录下的模型文件，通过MNN推理框架加载模型并初始化推理环境。然后将用户输入文本进行分词处理，转换为模型可接受的Tensor格式，执行推理操作获得输出结果，最后将输出结果解码为可读文本。
-
-[streamAIResponse](https://github.com/Enchograph/HuaJuan/app/src/main/java/com/chenhongyu/huajuan/data/LocalModelApiService.kt)方法通过flow构建Flow，调用getAIResponse获取完整响应后，使用贪心搜索算法或束搜索算法逐词生成文本。每次生成一个token时，将其作为ChatEvent.Chunk事件发送，并通过delay函数控制生成速度，模拟真实的流式输出效果。
 
 本地模型支持量化版本以减小模型体积并提高推理速度，包括INT8和INT4量化方式。模型推理过程中使用CPU进行计算，通过多线程优化提高推理效率。
 
@@ -979,7 +984,7 @@ sequenceDiagram
 4. 实现JAVA与CPP代码的耦合：通过JNI接口实现Java层与C++层的数据传递和方法调用
 5. 修改模型输出格式以适配统一的调用接口：调整本地模型输出格式，使其与OnlineModelApiService保持一致
 6. 本地模型API服务实现：实现LocalModelApiService，为本地模型提供统一接口
-7. 本地模型流式输出适配：适配本地模型流式输出，模拟逐词生成效果
+7. 本地模型流式输出适配：适配本地模型流式输出
 
 ### 第六阶段：完善本地模型功能（2025-12-08）
 
