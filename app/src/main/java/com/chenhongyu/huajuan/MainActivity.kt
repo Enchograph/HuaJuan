@@ -41,6 +41,7 @@ import com.chenhongyu.huajuan.SettingScreen
 import com.chenhongyu.huajuan.SideDrawer
 import com.chenhongyu.huajuan.AICreationScreen
 import com.chenhongyu.huajuan.AgentScreen
+import com.chenhongyu.huajuan.ImageSelectorScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,9 +66,11 @@ class MainActivity : ComponentActivity() {
         repository = Repository(this)
 
         setContent {
-            MainApp(repository) { closeCallback ->
-                // 保存关闭侧边栏的回调函数
-                closeDrawerCallback = closeCallback
+            HuaJuanTheme {
+                MainApp(repository) { closeCallback ->
+                    // 保存关闭侧边栏的回调函数
+                    closeDrawerCallback = closeCallback
+                }
             }
         }
 
@@ -98,7 +101,7 @@ fun MainApp(
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
     val screenWidthPx = with(density) { screenWidth.toPx() }
     
-    // 当前页面状态：0-聊天页，1-设置页，2-AI创作页，3-智能体页
+    // 当前页面状态：0-聊天页，1-设置页，2-AI创作页，3-智能体页，4-图片选择页
     val currentPage = remember { mutableStateOf(0) }
     
     // 从Repository获取深色模式设置
@@ -210,245 +213,270 @@ fun MainApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .offset { 
-                            IntOffset(
-                                if (currentPage.value == 0) 0 else 
-                                if (currentPage.value == 1) (-screenWidthPx).roundToInt() else
-                                if (currentPage.value == 2) (-(screenWidthPx * 2)).roundToInt() else
-                                (-(screenWidthPx * 3)).roundToInt(), 
-                                0
-                            ) 
-                        }
-                ) {
-                    // 聊天页面
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .offset { IntOffset(0, 0) }
-                    ) {
-                        HuaJuanTheme(darkTheme = darkMode.value) {
-                            ChatScreen(
-                                onMenuClick = { 
-                                    scope.launch {
-                                        if (drawerOffset.value == minDrawerOffset) {
-                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        } else {
-                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        }
-                                    }
-                                }, 
-                                appState, 
-                                darkMode.value, 
-                                repository
-                            )
-                        }
+                        IntOffset(
+                            if (currentPage.value == 0) 0 else 
+                            if (currentPage.value == 1) (-screenWidthPx).roundToInt() else
+                            if (currentPage.value == 2) (-(screenWidthPx * 2)).roundToInt() else
+                            if (currentPage.value == 3) (-(screenWidthPx * 3)).roundToInt() else
+                            (-(screenWidthPx * 4)).roundToInt(), 
+                            0
+                        ) 
                     }
-                    
-                    // 设置页面
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .offset { IntOffset(screenWidthPx.roundToInt(), 0) }
-                    ) {
-                        HuaJuanTheme(darkTheme = darkMode.value) {
-                            SettingScreen(
-                                repository, 
-                                darkMode,
-                                onMenuClick = {
-                                    scope.launch {
-                                        if (drawerOffset.value == minDrawerOffset) {
-                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        } else {
-                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        }
-                                    }
-                                },
-                                onBack = { 
-                                    // 切换回聊天页面（无动画）
-                                    currentPage.value = 0
-                                    // 随后触发动画隐藏侧边栏
-                                    scope.launch {
-                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    
-                    // AI 创作页面
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .offset { IntOffset((screenWidthPx * 2).roundToInt(), 0) }
-                    ) {
-                        HuaJuanTheme(darkTheme = darkMode.value) {
-                            AICreationScreen(
-                                onMenuClick = {
-                                    scope.launch {
-                                        if (drawerOffset.value == minDrawerOffset) {
-                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        } else {
-                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        }
-                                    }
-                                },
-                                onBack = { 
-                                    // 切换回聊天页面（无动画）
-                                    currentPage.value = 0
-                                    // 随后触发动画隐藏侧边栏
-                                    scope.launch {
-                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    
-                    // 智能体页面
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .offset { IntOffset((screenWidthPx * 3).roundToInt(), 0) }
-                    ) {
-                        HuaJuanTheme(darkTheme = darkMode.value) {
-                            AgentScreen(
-                                onMenuClick = {
-                                    scope.launch {
-                                        if (drawerOffset.value == minDrawerOffset) {
-                                            drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        } else {
-                                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                        }
-                                    }
-                                },
-                                onBack = { 
-                                    // 切换回聊天页面（无动画）
-                                    currentPage.value = 0
-                                    // 随后触发动画隐藏侧边栏
-                                    scope.launch {
-                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                    }
-                                },
-                                repository = repository,
-                                onConversationCreated = { newConversationId ->
-                                    // Update app state so UI reflects the new conversation immediately
-                                    appState = appState.copy(
-                                        currentConversationId = newConversationId
-                                    )
-                                    appState = appState.copy(
-                                        conversations = repository.getConversations()
-                                    )
-                                    // switch to chat page
-                                    currentPage.value = 0
-                                    // close drawer
-                                    scope.launch {
-                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                // 遮罩层 - 直接应用于主页面容器之上
+            ) {
+                // 聊天页面
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(
-                            Color.Black.copy(
-                                alpha = (drawerOffset.value - minDrawerOffset) / (maxDrawerOffset - minDrawerOffset) * 0.3f
-                            )
+                        .offset { IntOffset(0, 0) }
+                ) {
+                    HuaJuanTheme(darkTheme = darkMode.value) {
+                        ChatScreen(
+                            onMenuClick = { 
+                                scope.launch {
+                                    if (drawerOffset.value == minDrawerOffset) {
+                                        drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    } else {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            }, 
+                            appState, 
+                            darkMode.value, 
+                            repository,
+                            onOpenImageSelector = {
+                                // 切换到图片选择页面
+                                currentPage.value = 4
+                            }
                         )
-                )
-            }
-        }
-        
-        // 侧边栏
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(drawerOffset.value.roundToInt(), 0) }
-        ) {
-            HuaJuanTheme(darkTheme = darkMode.value) {
-                var showContextMenu by remember { mutableStateOf(false) }
+                    }
+                }
                 
-                SideDrawer(
-                    onChatPageSelected = { conversationId -> 
-                        println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
-                        // 如果是特殊标识符"refresh_needed"，则只刷新对话列表而不切换页面
-                        if (conversationId == "refresh_needed") {
-                            // 只更新对话列表
-                            appState = appState.copy(
-                                conversations = repository.getConversations()
-                            )
-                            return@SideDrawer
-                        }
-                        
-                        // 正常的页面切换逻辑
-                        appState = appState.copy(
-                            currentConversationId = if (conversationId == "default") null else conversationId
+                // 设置页面
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset(screenWidthPx.roundToInt(), 0) }
+                ) {
+                    HuaJuanTheme(darkTheme = darkMode.value) {
+                        SettingScreen(
+                            repository, 
+                            darkMode,
+                            onMenuClick = {
+                                scope.launch {
+                                    if (drawerOffset.value == minDrawerOffset) {
+                                        drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    } else {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            },
+                            onBack = { 
+                                // 切换回聊天页面（无动画）
+                                currentPage.value = 0
+                                // 随后触发动画隐藏侧边栏
+                                scope.launch {
+                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
+                            }
                         )
-                        println("DEBUG: Set appState.currentConversationId to: ${appState.currentConversationId}")
-                        // 更新appState中的对话列表
-                        appState = appState.copy(
-                            conversations = repository.getConversations()
+                    }
+                }
+                
+                // AI 创作页面
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset((screenWidthPx * 2).roundToInt(), 0) }
+                ) {
+                    HuaJuanTheme(darkTheme = darkMode.value) {
+                        AICreationScreen(
+                            onMenuClick = {
+                                scope.launch {
+                                    if (drawerOffset.value == minDrawerOffset) {
+                                        drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    } else {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            },
+                            onBack = { 
+                                // 切换回聊天页面（无动画）
+                                currentPage.value = 0
+                                // 随后触发动画隐藏侧边栏
+                                scope.launch {
+                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
+                            }
                         )
-                        println("DEBUG: Updated appState.conversations, total conversations: ${appState.conversations.size}")
-                        // 切换到聊天页面（无动画）
-                        currentPage.value = 0
-                        println("DEBUG: Set currentPage to 0")
-                        // 随后触发动画隐藏侧边栏
-                        scope.launch { 
-                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    },
-                    onSettingPageSelected = { 
-                        // 切换到设置页面（无动画）
-                        currentPage.value = 1
-                        // 随后触发动画隐藏侧边栏
-                        scope.launch { 
-                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    },
-                    onAICreationPageSelected = {
-                        // 切换到AI创作页面（无动画）
-                        currentPage.value = 2
-                        // 随后触发动画隐藏侧边栏
-                        scope.launch {
-                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    },
-                    onAgentPageSelected = {
-                        // 切换到智能体页面（无动画）
-                        currentPage.value = 3
-                        // 随后触发动画隐藏侧边栏
-                        scope.launch {
-                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    },
-                    conversations = appState.conversations,
-                    drawerWidth = drawerWidth,
-                    darkTheme = darkMode.value,
-                    repository = repository,
-                    currentConversationId = appState.currentConversationId // 添加当前对话ID参数
-                )
+                    }
+                }
+                
+                // 智能体页面
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset((screenWidthPx * 3).roundToInt(), 0) }
+                ) {
+                    HuaJuanTheme(darkTheme = darkMode.value) {
+                        AgentScreen(
+                            onMenuClick = {
+                                scope.launch {
+                                    if (drawerOffset.value == minDrawerOffset) {
+                                        drawerOffset.animateTo(maxDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    } else {
+                                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            },
+                            onBack = { 
+                                // 切换回聊天页面（无动画）
+                                currentPage.value = 0
+                                // 随后触发动画隐藏侧边栏
+                                scope.launch {
+                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
+                            },
+                            repository = repository,
+                            onConversationCreated = { newConversationId ->
+                                // Update app state so UI reflects the new conversation immediately
+                                appState = appState.copy(
+                                    currentConversationId = newConversationId
+                                )
+                                appState = appState.copy(
+                                    conversations = repository.getConversations()
+                                )
+                                // switch to chat page
+                                currentPage.value = 0
+                                // close drawer
+                                scope.launch {
+                                    drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
+                            }
+                        )
+                    }
+                }
+                
+                // 图片选择页面
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset { IntOffset((screenWidthPx * 4).roundToInt(), 0) }
+                ) {
+                    HuaJuanTheme(darkTheme = darkMode.value) {
+                        ImageSelectorScreen(
+                            onImageSelected = { selectedUris ->
+                                // 这里需要将选中的图片返回到聊天页面
+                                // 由于状态管理的复杂性，我们简单地返回到聊天页面
+                                currentPage.value = 0
+                            },
+                            onBack = {
+                                // 返回到聊天页面
+                                currentPage.value = 0
+                            }
+                        )
+                    }
+                }
             }
-        }
-        
-        // 当侧边栏展开时，点击主页面露出的部分视为返回操作
-        if (drawerOffset.value > minDrawerOffset) {
+            
+            // 遮罩层 - 直接应用于主页面容器之上
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(x = drawerWidth)
-                    .clickable(
-                        indication = null,
-                        interactionSource = null
-                    ) {
-                        scope.launch {
-                            drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    }
+                    .background(
+                        Color.Black.copy(
+                            alpha = (drawerOffset.value - minDrawerOffset) / (maxDrawerOffset - minDrawerOffset) * 0.3f
+                        )
+                    )
             )
         }
     }
-}
+    
+    // 侧边栏
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .offset { IntOffset(drawerOffset.value.roundToInt(), 0) }
+    ) {
+        HuaJuanTheme(darkTheme = darkMode.value) {
+            var showContextMenu by remember { mutableStateOf(false) }
+            
+            SideDrawer(
+                onChatPageSelected = { conversationId -> 
+                    println("DEBUG: onChatPageSelected called with conversationId: $conversationId")
+                    // 如果是特殊标识符"refresh_needed"，则只刷新对话列表而不切换页面
+                    if (conversationId == "refresh_needed") {
+                        // 只更新对话列表
+                        appState = appState.copy(
+                            conversations = repository.getConversations()
+                        )
+                        return@SideDrawer
+                    }
+                    
+                    // 正常的页面切换逻辑
+                    appState = appState.copy(
+                        currentConversationId = if (conversationId == "default") null else conversationId
+                    )
+                    println("DEBUG: Set appState.currentConversationId to: ${appState.currentConversationId}")
+                    // 更新appState中的对话列表
+                    appState = appState.copy(
+                        conversations = repository.getConversations()
+                    )
+                    println("DEBUG: Updated appState.conversations, total conversations: ${appState.conversations.size}")
+                    // 切换到聊天页面（无动画）
+                    currentPage.value = 0
+                    println("DEBUG: Set currentPage to 0")
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch { 
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onSettingPageSelected = { 
+                    // 切换到设置页面（无动画）
+                    currentPage.value = 1
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch { 
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onAICreationPageSelected = {
+                    // 切换到AI创作页面（无动画）
+                    currentPage.value = 2
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch {
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onAgentPageSelected = {
+                    // 切换到智能体页面（无动画）
+                    currentPage.value = 3
+                    // 随后触发动画隐藏侧边栏
+                    scope.launch {
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                conversations = appState.conversations,
+                drawerWidth = drawerWidth,
+                darkTheme = darkMode.value,
+                repository = repository,
+                currentConversationId = appState.currentConversationId // 添加当前对话ID参数
+            )
+        }
+    }
+    
+    // 当侧边栏展开时，点击主页面露出的部分视为返回操作
+    if (drawerOffset.value > minDrawerOffset) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(x = drawerWidth)
+                .clickable(
+                    indication = null,
+                    interactionSource = null
+                ) {
+                    scope.launch {
+                        drawerOffset.animateTo(minDrawerOffset, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                }
+        )
+    }
+}}

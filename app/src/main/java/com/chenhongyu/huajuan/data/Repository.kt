@@ -275,7 +275,8 @@ class Repository(private val context: Context) {
                         id = entity.id,
                         text = entity.text,
                         isUser = entity.isUser,
-                        timestamp = entity.timestamp
+                        timestamp = entity.timestamp,
+                        imageUris = entity.getImageUris() // 添加图片URI列表
                     )
                 }
                 println("DEBUG: Returning ${messages.size} messages for conversationId: $conversationId")
@@ -312,7 +313,7 @@ class Repository(private val context: Context) {
                     text = message.text,
                     isUser = message.isUser,
                     timestamp = message.timestamp
-                )
+                ).setImageUris(message.imageUris) // 设置图片URI列表
             }
             
             // 使用 upsert 操作避免冲突
@@ -540,15 +541,58 @@ class Repository(private val context: Context) {
                     role = "system",
                     content = systemPrompt
                 )
-            ) + messages.map {
-                com.chenhongyu.huajuan.network.Message(
-                    role = if (it.isUser) "user" else "assistant",
-                    content = it.text
-                )
-            }
+            ) + convertToNetworkMessages(messages)
             return modelApiService.getAIResponse(networkMessages, modelInfo)
         } catch (e: Exception) {
             return "错误：${e.message ?: e.javaClass.simpleName}"
+        }
+    }
+
+    // 将本地Message转换为网络Message，支持图片内容
+    private fun convertToNetworkMessages(messages: List<Message>): List<com.chenhongyu.huajuan.network.Message> {
+        return messages.map { message ->
+            if (message.imageUris.isNotEmpty()) {
+                // 如果消息包含图片，创建内容数组
+                val contentItems = mutableListOf<com.chenhongyu.huajuan.network.Content>()
+                
+                // 添加文本内容（如果存在）
+                if (message.text.isNotEmpty()) {
+                    contentItems.add(com.chenhongyu.huajuan.network.Content.Text(message.text))
+                }
+                
+                // 添加图片内容
+                message.imageUris.forEach { imageUri ->
+                    // 尝试将图片URI转换为base64或直接使用URI
+                    val imageUrl = if (imageUri.startsWith("http")) {
+                        imageUri // 如果已经是URL，直接使用
+                    } else {
+                        // 如果是本地URI，需要转换为base64或处理为可访问的URL
+                        // 这里先使用file://格式，实际实现中可能需要转换为base64
+                        "file://$imageUri"
+                    }
+                    contentItems.add(com.chenhongyu.huajuan.network.Content.ImageUrl(
+                        com.chenhongyu.huajuan.network.ImageData(url = imageUrl)
+                    ))
+                }
+                
+                // 如果只有一个文本项，直接使用字符串格式
+                val content: Any = if (contentItems.size == 1 && contentItems[0] is com.chenhongyu.huajuan.network.Content.Text) {
+                    (contentItems[0] as com.chenhongyu.huajuan.network.Content.Text).text
+                } else {
+                    contentItems
+                }
+                
+                com.chenhongyu.huajuan.network.Message(
+                    role = if (message.isUser) "user" else "assistant",
+                    content = content
+                )
+            } else {
+                // 没有图片，使用简单文本格式
+                com.chenhongyu.huajuan.network.Message(
+                    role = if (message.isUser) "user" else "assistant",
+                    content = message.text
+                )
+            }
         }
     }
 
@@ -578,12 +622,7 @@ class Repository(private val context: Context) {
                 role = "system",
                 content = systemPrompt
             )
-        ) + messages.map {
-            com.chenhongyu.huajuan.network.Message(
-                role = if (it.isUser) "user" else "assistant",
-                content = it.text
-            )
-        }
+        ) + convertToNetworkMessages(messages)
 
         return modelApiService.streamAIResponse(networkMessages, modelInfo)
     }

@@ -61,7 +61,38 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.derivedStateOf
+import com.chenhongyu.huajuan.utils.ThinkTagProcessor
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.graphics.Color
+import coil3.compose.AsyncImage
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.foundation.lazy.LazyRow
+import com.chenhongyu.huajuan.utils.getImageList
+import com.chenhongyu.huajuan.components.ExpandedInputArea
+import com.chenhongyu.huajuan.components.ExpandedInputSquareButton
 
+/**
+ * 图片数据类
+ */
+data class ImageItem(
+    val id: String,
+    val uri: String,
+    val displayName: String,
+    val dateAdded: Long
+)
 
 /**
  * 聊天界面
@@ -72,13 +103,15 @@ fun ChatScreen(
     onMenuClick: () -> Unit, 
     appState: AppState, 
     isDarkTheme: Boolean, 
-    repository: Repository
+    repository: Repository,
+    onOpenImageSelector: () -> Unit = {}
 ) {
     println("DEBUG: ChatScreen recomposed with currentConversationId: ${appState.currentConversationId}")
     val scope = rememberCoroutineScope()
     // Editor state: when non-null, show the AI creation editor for that message
     var editorMessage by remember { mutableStateOf<com.chenhongyu.huajuan.data.Message?>(null) }
     var isExpanded by remember { mutableStateOf(false) }
+    var selectedImageUris by remember { mutableStateOf<List<String>>(emptyList()) }
     // 移除对appState.currentConversationId的依赖，避免重组时的过渡动画
     var chatState by remember { 
         println("DEBUG: Initializing chatState")
@@ -151,6 +184,14 @@ fun ChatScreen(
                     lastUserScrollTime = System.currentTimeMillis()
                 }
             }
+    }
+
+    // 函数：更新消息的think可见性状态
+    fun updateMessageThinkVisibility(messageId: String, showThink: Boolean) {
+        val updatedMessages = chatState.messages.map { message ->
+            if (message.id == messageId) message.copy(showThink = showThink) else message
+        }
+        chatState = chatState.copy(messages = updatedMessages)
     }
 
     Scaffold(
@@ -234,13 +275,15 @@ fun ChatScreen(
                     chatState = chatState.copy(inputText = newText)
                 },
                 onSendMessage = { text ->
-                    if (text.isNotBlank()) {
+                    val imageUris = selectedImageUris
+                    if (text.isNotBlank() || imageUris.isNotEmpty()) {
                         // 创建用户消息，使用UUID确保ID唯一性
                         val userMessage = Message(
                             id = java.util.UUID.randomUUID().toString(),
                             text = text,
                             isUser = true,
-                            timestamp = Date()
+                            timestamp = Date(),
+                            imageUris = imageUris // 添加选中的图片
                         )
                         
                         // 更新聊天状态
@@ -249,6 +292,9 @@ fun ChatScreen(
                             messages = updatedMessages,
                             inputText = ""
                         )
+                        
+                        // 清空选中的图片
+                        selectedImageUris = emptyList()
                         
                         // 保存用户消息
                         scope.launch {
@@ -313,7 +359,20 @@ fun ChatScreen(
                                             println("UI-STREAM-DEBUG: chunk textPreview='${event.text.take(200)}' at=${System.currentTimeMillis()}")
                                             val updatedMessages2 = chatState.messages.map { message ->
                                                 if (message.id == aiMessageId) {
-                                                    message.copy(text = message.text + event.text)
+                                                    // 检查新文本块是否包含think标签的开始
+                                                    val newText = message.text + event.text
+                                                    // 如果AI消息包含think标签，设置默认显示think内容
+                                                    val hasThinkBefore = ThinkTagProcessor.containsThinkTag(message.text)
+                                                    val hasThinkAfter = ThinkTagProcessor.containsThinkTag(newText)
+                                                    
+                                                    val newShowThink = if (!hasThinkBefore && hasThinkAfter) {
+                                                        // 首次发现think标签时，显示think内容
+                                                        true
+                                                    } else {
+                                                        message.showThink // 保持当前状态
+                                                    }
+                                                    
+                                                    message.copy(text = newText, showThink = newShowThink)
                                                 } else message
                                             }
                                             chatState = chatState.copy(messages = updatedMessages2)
@@ -368,9 +427,18 @@ fun ChatScreen(
                                             try { repository.saveMessages(currentConversationId, chatState.messages) } finally { dbMutex.unlock() }
                                         }
                                         is ChatEvent.Done -> {
+                                            // AI回复完成，此时检查AI消息是否包含think标签，如果是，则自动隐藏think内容
+                                            val updatedMessages2 = chatState.messages.map { message ->
+                                                if (message.id == aiMessageId && ThinkTagProcessor.containsThinkTag(message.text)) {
+                                                    // AI回复完成，自动隐藏think内容
+                                                    message.copy(showThink = false)
+                                                } else message
+                                            }
+                                            chatState = chatState.copy(messages = updatedMessages2)
+                                            
                                             // save final
                                             dbMutex.lock()
-                                            try { repository.saveMessages(currentConversationId, chatState.messages) } finally { dbMutex.unlock() }
+                                            try { repository.saveMessages(currentConversationId, updatedMessages2) } finally { dbMutex.unlock() }
                                             // update conversation summary
                                             dbMutex.lock()
                                             try { repository.updateLastMessage(currentConversationId, chatState.messages.lastOrNull()?.text ?: "")
@@ -390,7 +458,12 @@ fun ChatScreen(
                             }
                         }
                     }
-                }
+                },
+                onOpenImageSelector = { 
+                    onOpenImageSelector()
+                },
+                selectedImageUris = selectedImageUris,
+                onSelectedImageUrisChange = { uris -> selectedImageUris = uris }
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -406,7 +479,10 @@ fun ChatScreen(
              modifier = Modifier
                  .padding(paddingValues)
                  .fillMaxSize(),
-             onOpenEditor = { msg -> editorMessage = msg }
+             onOpenEditor = { msg -> editorMessage = msg },
+             onUpdateMessageThinkVisibility = { messageId, showThink -> 
+                 updateMessageThinkVisibility(messageId, showThink) 
+             }
          )
      }
 
@@ -519,7 +595,8 @@ fun ChatContentArea(
     listState: LazyListState,
     conversationId: String?,
     modifier: Modifier = Modifier,
-    onOpenEditor: ((Message) -> Unit)? = null
+    onOpenEditor: ((Message) -> Unit)? = null,
+    onUpdateMessageThinkVisibility: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     println("DEBUG: ChatContentArea rendering with ${messages.size} messages")
     val scope = rememberCoroutineScope()
@@ -567,7 +644,7 @@ fun ChatContentArea(
                                 .padding(16.dp)
                         ) {
                             Markdown(
-                                content = message.text,
+                                content = ThinkTagProcessor.processThinkTags(message.text, message.showThink),
                                 colors = markdownColor(
                                     text = MaterialTheme.colorScheme.onSurface,
                                     codeBackground = MaterialTheme.colorScheme.secondaryContainer,
@@ -584,6 +661,29 @@ fun ChatContentArea(
                                     MaterialTheme.typography.bodyLarge
                                 )
                             )
+                            
+                            // 显示AI回复中的图片
+                            if (message.imageUris.isNotEmpty()) {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(message.imageUris) { uri ->
+                                        AsyncImage(
+                                            model = uri,
+                                            contentDescription = "AI image response",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(120.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -600,6 +700,35 @@ fun ChatContentArea(
                         var isFavorited by remember { mutableStateOf(false) }
                         val context = LocalContext.current
                         val clipboardManager = LocalClipboardManager.current
+                        
+                        // 检查是否包含think标签，如果有则显示think切换按钮
+                        val hasThink = remember(message.text) { ThinkTagProcessor.containsThinkTag(message.text) }
+                        var currentShowThink by remember(message.id) { mutableStateOf(message.showThink) }
+                        
+                        // Think可见性切换按钮
+                        if (hasThink) {
+                            IconButton(
+                                onClick = { 
+                                    currentShowThink = !currentShowThink
+                                    // 更新消息的think可见性状态
+                                    onUpdateMessageThinkVisibility(message.id, currentShowThink)
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant 
+                                        else MaterialTheme.colorScheme.surface,
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = if (currentShowThink) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (currentShowThink) "隐藏思考" else "显示思考",
+                                    tint = if (currentShowThink) MaterialTheme.colorScheme.primary 
+                                          else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         
                         IconButton(
                             onClick = { 
@@ -739,7 +868,7 @@ fun ChatContentArea(
                                 .padding(16.dp)
                         ) {
                             Markdown(
-                                content = message.text,
+                                content = ThinkTagProcessor.processThinkTags(message.text, message.showThink),
                                 colors = markdownColor(
                                     text = MaterialTheme.colorScheme.onPrimary,
                                     codeBackground = MaterialTheme.colorScheme.primaryContainer,
@@ -756,6 +885,29 @@ fun ChatContentArea(
                                     MaterialTheme.typography.bodyLarge
                                 )
                             )
+                            
+                            // 显示用户发送的图片
+                            if (message.imageUris.isNotEmpty()) {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(message.imageUris) { uri ->
+                                        AsyncImage(
+                                            model = uri,
+                                            contentDescription = "User image",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(120.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     
@@ -817,7 +969,10 @@ fun BottomInputArea(
     onExpandChange: (Boolean) -> Unit,
     inputText: String = "",
     onInputTextChanged: (String) -> Unit = {},
-    onSendMessage: (String) -> Unit = {}
+    onSendMessage: (String) -> Unit = {},
+    onOpenImageSelector: () -> Unit = {},
+    selectedImageUris: List<String> = emptyList(),
+    onSelectedImageUrisChange: (List<String>) -> Unit = {}
 ) {
     var text by remember { mutableStateOf(inputText) }
     val focusManager = LocalFocusManager.current
@@ -830,6 +985,48 @@ fun BottomInputArea(
             .navigationBarsPadding()
             .imePadding()
     ) {
+        // 显示选中的图片缩略图
+        if (selectedImageUris.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(selectedImageUris) { uri ->
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = "Selected image",
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // 删除按钮
+                        IconButton(
+                            onClick = {
+                                val updatedUris = selectedImageUris - uri
+                                onSelectedImageUrisChange(updatedUris)
+                            },
+                            modifier = Modifier
+                                .size(20.dp)
+                                .align(Alignment.TopEnd)
+                                .background(Color.Red, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Remove image",
+                                modifier = Modifier.size(12.dp),
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
         // 输入框行
         Row(
             modifier = Modifier
@@ -881,9 +1078,10 @@ fun BottomInputArea(
                 ),
                 keyboardActions = KeyboardActions(
                     onSend = {
-                        if (text.isNotBlank()) {
+                        if (text.isNotBlank() || selectedImageUris.isNotEmpty()) {
                             onSendMessage(text)
                             text = ""
+                            onSelectedImageUrisChange(emptyList())
                             focusManager.clearFocus()
                         }
                     }
@@ -892,17 +1090,20 @@ fun BottomInputArea(
             )
             
             IconButton(
-                enabled = text.isNotBlank(),
+                enabled = text.isNotBlank() || selectedImageUris.isNotEmpty(),
                 onClick = { 
-                    onSendMessage(text)
-                    text = ""
-                    focusManager.clearFocus()
+                    if (text.isNotBlank() || selectedImageUris.isNotEmpty()) {
+                        onSendMessage(text)
+                        text = ""
+                        onSelectedImageUrisChange(emptyList())
+                        focusManager.clearFocus()
+                    }
                 }
             ) {
                 Icon(
-                    imageVector = if (text.isNotBlank()) Icons.AutoMirrored.Filled.Send else Icons.AutoMirrored.Outlined.Send,
+                    imageVector = if (text.isNotBlank() || selectedImageUris.isNotEmpty()) Icons.AutoMirrored.Filled.Send else Icons.AutoMirrored.Outlined.Send,
                     contentDescription = "发送",
-                    tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary 
+                    tint = if (text.isNotBlank() || selectedImageUris.isNotEmpty()) MaterialTheme.colorScheme.primary 
                           else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -919,175 +1120,8 @@ fun BottomInputArea(
         }
         
         // 扩展区
-//        if (isExpanded) {
-//            ExpandedInputArea()
-//        }
+        if (isExpanded) {
+            ExpandedInputArea(onOpenImageSelector = onOpenImageSelector)
+        }
     }
 }
-
-/**
- * 扩展输入区域
- */
-//@Composable
-//fun ExpandedInputArea() {
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(bottom = 16.dp)
-//            .navigationBarsPadding() // 适配导航栏
-//    ) {
-//        // 第一行功能按钮
-//        Row(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(horizontal = 16.dp),
-//            horizontalArrangement = Arrangement.SpaceBetween
-//        ) {
-//            Column(
-//                horizontalAlignment = Alignment.CenterHorizontally
-//            ) {
-//                IconButton(
-//                    onClick = {
-//                        /* 相机功能 */
-//                        println("扩展区域相机按钮被点击")
-//                    },
-//                    modifier = Modifier
-//                        .size(56.dp)
-//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-//                ) {
-//                    Icon(
-//                        Icons.Outlined.CameraAlt,
-//                        contentDescription = "相机",
-//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-//                    )
-//                }
-//                Text(
-//                    text = "相机",
-//                    fontSize = 12.sp,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-//            }
-//
-//            Column(
-//                horizontalAlignment = Alignment.CenterHorizontally
-//            ) {
-//                IconButton(
-//                    onClick = {
-//                        /* 相册功能 */
-//                        println("相册按钮被点击")
-//                    },
-//                    modifier = Modifier
-//                        .size(56.dp)
-//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-//                ) {
-//                    Icon(
-//                        Icons.Outlined.PhotoLibrary,
-//                        contentDescription = "相册",
-//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-//                    )
-//                }
-//                Text(
-//                    text = "相册",
-//                    fontSize = 12.sp,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-//            }
-//
-//            Column(
-//                horizontalAlignment = Alignment.CenterHorizontally
-//            ) {
-//                IconButton(
-//                    onClick = {
-//                        /* 文件功能 */
-//                        println("文件按钮被点击")
-//                    },
-//                    modifier = Modifier
-//                        .size(56.dp)
-//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-//                ) {
-//                    Icon(
-//                        Icons.AutoMirrored.Outlined.InsertDriveFile,
-//                        contentDescription = "文件",
-//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-//                    )
-//                }
-//                Text(
-//                    text = "文件",
-//                    fontSize = 12.sp,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-//            }
-//
-//            Column(
-//                horizontalAlignment = Alignment.CenterHorizontally
-//            ) {
-//                IconButton(
-//                    onClick = {
-//                        /* 打电话功能 */
-//                        println("打电话按钮被点击")
-//                    },
-//                    modifier = Modifier
-//                        .size(56.dp)
-//                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-//                ) {
-//                    Icon(
-//                        Icons.Outlined.Call,
-//                        contentDescription = "打电话",
-//                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-//                    )
-//                }
-//                Text(
-//                    text = "通话",
-//                    fontSize = 12.sp,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-//            }
-//        }
-//
-//        // 图片网格标题
-//        Text(
-//            text = "最近图片",
-//            style = MaterialTheme.typography.titleMedium,
-//            fontWeight = FontWeight.Medium,
-//            modifier = Modifier
-//                .padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-//            color = MaterialTheme.colorScheme.onSurface
-//        )
-//
-//        // 四列2.5行的图片网格
-//        Column(
-//            modifier = Modifier
-//                .fillMaxWidth()
-//                .padding(horizontal = 16.dp)
-//        ) {
-//            repeat(3) { rowIndex ->
-//                Row(
-//                    modifier = Modifier
-//                        .fillMaxWidth(),
-//                    horizontalArrangement = Arrangement.SpaceBetween
-//                ) {
-//                    repeat(4) { columnIndex ->
-//                        Box(
-//                            modifier = Modifier
-//                                .size(70.dp)
-//                                .padding(4.dp)
-//                                .clip(RoundedCornerShape(8.dp))
-//                                .background(MaterialTheme.colorScheme.surfaceVariant)
-//                                .clickable {
-//                                    println("选择了图片: 行$rowIndex, 列$columnIndex")
-//                                }
-//                        ) {
-//                            Box(
-//                                modifier = Modifier
-//                                    .size(24.dp)
-//                                    .align(Alignment.Center)
-//                                    .clip(RoundedCornerShape(4.dp))
-//                                    .background(MaterialTheme.colorScheme.onSurfaceVariant)
-//                            )
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}

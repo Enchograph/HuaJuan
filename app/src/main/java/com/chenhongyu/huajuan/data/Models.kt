@@ -7,7 +7,9 @@ data class Message(
     val id: String = UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
-    val timestamp: Date
+    val timestamp: Date,
+    var showThink: Boolean = true,
+    val imageUris: List<String> = emptyList() // 添加图片URI列表
 )
 
 data class UserInfo(

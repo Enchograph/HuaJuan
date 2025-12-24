@@ -13,6 +13,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.chenhongyu.huajuan.utils.ThinkTagProcessor
 
 object ShareHelper {
 
@@ -223,7 +224,7 @@ object ShareHelper {
             )
 
             val dialogue = messages.map { m ->
-                DialogueMessage(role = if (m.isUser) "user" else "ai", content = m.text)
+                DialogueMessage(role = if (m.isUser) "user" else "ai", content = ThinkTagProcessor.removeThinkTags(m.text))
             }
 
             val chatData = ChatData(meta = meta, systemPrompt = conversation.systemPrompt ?: "", dialogue = dialogue)

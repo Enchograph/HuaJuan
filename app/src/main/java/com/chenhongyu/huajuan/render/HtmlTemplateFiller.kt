@@ -1,6 +1,7 @@
 package com.chenhongyu.huajuan.render
 
 import org.json.JSONObject
+import com.chenhongyu.huajuan.utils.ThinkTagProcessor
 
 object HtmlTemplateFiller {
     /**
@@ -10,7 +11,14 @@ object HtmlTemplateFiller {
      * that sets these elements using the provided data map.
      */
     fun fillTemplate(templateHtml: String, data: Map<String, String>): String {
-        val json = JSONObject(data as Map<*, *>).toString()
+        // Process think tags in the content
+        val processedData = data.mapValues { entry ->
+            when (entry.key) {
+                "userContent", "aiContent" -> ThinkTagProcessor.processThinkTags(entry.value)
+                else -> entry.value
+            }
+        }
+        val json = JSONObject(processedData as Map<*, *>).toString()
 
         val script = buildString {
             append("<script>\n")

@@ -40,6 +40,7 @@ import androidx.core.content.FileProvider
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.chenhongyu.huajuan.utils.ThinkTagProcessor
 
 /**
  * AI创作页面
@@ -363,7 +364,7 @@ fun AICreationEditor(
                                         val convText = if (includeConversation && conversationMessages != null) {
                                             conversationMessages.joinToString(separator = "\n") { m ->
                                                 val who = if (m.isUser) repository.getUserInfo().username else repository.getConversationRoleName(conversationId)
-                                                "[${who}] ${m.text}"
+                                                "[${who}] ${ThinkTagProcessor.removeThinkTags(m.text)}"
                                             }
                                         } else null
 
@@ -454,7 +455,7 @@ fun AICreationEditor(
                                             val convText = if (includeConversation && conversationMessages != null) {
                                                 conversationMessages.joinToString(separator = "\n") { m ->
                                                     val who = if (m.isUser) repository.getUserInfo().username else repository.getConversationRoleName(conversationId)
-                                                    "[${who}] ${m.text}"
+                                                    "[${who}] ${ThinkTagProcessor.removeThinkTags(m.text)}"
                                                 }
                                             } else null
 
@@ -633,7 +634,7 @@ fun AICreationDetail(
                     if (!convText.isNullOrEmpty()) {
                         Text(text = "对话内容", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = convText, style = MaterialTheme.typography.bodySmall)
+                        Text(text = ThinkTagProcessor.removeThinkTags(convText), style = MaterialTheme.typography.bodySmall)
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 

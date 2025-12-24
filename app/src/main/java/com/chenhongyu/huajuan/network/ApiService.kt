@@ -25,7 +25,18 @@ data class OpenAiRequest(
 // 注意：这里的Message类与Repository中的Message类不同
 data class Message(
     val role: String,
-    val content: String
+    val content: Any // 支持字符串或内容数组，用于图片内容
+)
+
+// 内容项数据类 - 支持文本和图片
+sealed class Content {
+    data class Text(val text: String) : Content()
+    data class ImageUrl(val imageUrl: ImageData) : Content()
+}
+
+data class ImageData(
+    val url: String, // 图片URL，可以是base64编码或远程URL
+    val detail: String = "auto" // 图片细节级别：auto, low, high
 )
 
 // 响应数据类

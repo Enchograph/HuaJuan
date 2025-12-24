@@ -88,6 +88,9 @@ dependencies {
     implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.29.0")
     implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.29.0")
     
+    // 添加图片选择器相关依赖
+    implementation("androidx.activity:activity-compose:1.9.1")
+    
     // 添加Room数据库依赖 (使用较低版本以兼容当前Kotlin版本)
     implementation("androidx.room:room-runtime:2.5.0")
     implementation("androidx.room:room-ktx:2.5.0")
