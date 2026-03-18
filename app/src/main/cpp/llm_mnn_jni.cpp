@@ -159,6 +159,7 @@ Java_com_huajuan_aispace_network_LlmSession_submitNative(
     putLong(env, resultMap, "audio_time", context->audio_us);
     putLong(env, resultMap, "prefill_time", context->prefill_us);
     putLong(env, resultMap, "decode_time", context->decode_us);
+    putString(env, resultMap, "response", llm->getLastResponse());
     return resultMap;
 }
 

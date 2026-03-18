@@ -131,6 +131,7 @@ private:
                                int iteration, int nPrompt, int nGenerate,
                                BenchmarkResult& result, const BenchmarkCallback& callback,
                                bool isKvCache);
+    std::string getLastResponse() const;
 
     std::string response_string_for_debug{};
     std::string model_path_;

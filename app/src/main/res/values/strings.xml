@@ -456,9 +456,9 @@
     <string name="settings_terms_subtitle">开源版本以仓库根目录 LICENSE 为准</string>
     <string name="settings_privacy_title">隐私政策</string>
     <string name="settings_privacy_subtitle">当前版本默认不接入统计，第三方请求由用户主动配置触发</string>
-    <string name="settings_local_model_not_built_in">当前版本未内置本地模型。</string>
-    <string name="settings_local_model_import_hint">如需启用本地模型，请在后续版本中手动导入兼容模型文件。</string>
-    <string name="settings_local_model_wait_import_hint">如需使用本地模型，请等待后续导入能力开放。</string>
+    <string name="settings_local_model_not_built_in">当前未发现可用的内置本地模型。</string>
+    <string name="settings_local_model_import_hint">如需启用本地模型，请将兼容的 MNN 模型目录放入 app/src/main/assets/models，并确保主文件名为 llm.mnn。</string>
+    <string name="settings_local_model_wait_import_hint">如需使用本地模型，请先在 app/src/main/assets/models 下放入兼容的 MNN 模型资源。</string>
     <string name="settings_cloud_models">云端模型</string>
     <string name="settings_local_models">本地模型</string>
     <string name="settings_api_base_url">API 基址</string>

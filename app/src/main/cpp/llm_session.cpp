@@ -193,6 +193,10 @@ LlmSession::~LlmSession() {
     delete llm_;
 }
 
+std::string LlmSession::getLastResponse() const {
+    return response_string_for_debug;
+}
+
 const MNN::Transformer::LlmContext * LlmSession::Response(const std::string &prompt,
                                                           const std::function<bool(const std::string&, bool is_eop)>& on_progress) {
     if (llm_ == nullptr) {
@@ -205,6 +209,7 @@ const MNN::Transformer::LlmContext * LlmSession::Response(const std::string &pro
     int current_size = 0;
     stop_requested_ = false;
     generate_text_end_ = false;
+    response_string_for_debug.clear();
     std::stringstream response_buffer;
     mls::Utf8StreamProcessor processor([&response_buffer, &on_progress, this](const std::string& utf8Char) {
         bool is_eop = utf8Char.find("<eop>") != std::string::npos;
@@ -223,6 +228,7 @@ const MNN::Transformer::LlmContext * LlmSession::Response(const std::string &pro
                 response_result = getR1AssistantString(response_result);
             }
             response_result = trimLeadingWhitespace(deleteThinkPart(response_result));
+            response_string_for_debug = response_result;
             history_.emplace_back("assistant", response_result);
         }
         if (on_progress) {

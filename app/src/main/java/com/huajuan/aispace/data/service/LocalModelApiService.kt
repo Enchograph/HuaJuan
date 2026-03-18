@@ -27,6 +27,7 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
     }
 
     private var llmSession: LlmSession? = null
+    private var activeModelKey: String? = null
 
     override fun isAvailable(): Boolean {
         // 检查本地模型环境是否可用
@@ -39,43 +40,27 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
         debugScopeId: String?
     ): String {
         try {
-            // 初始化LLM会话（如果尚未初始化） - 在IO线程中执行
-            if (llmSession == null) {
-                withContext(Dispatchers.IO) {
-                    val modelPath = modelInfo.modelPath.takeIf { it.isNotEmpty() } ?: getLocalModelPath(modelInfo.displayName)
-                    debugLog(TAG) { "初始化本地模型，名称=${modelInfo.displayName}, 路径=$modelPath" }
-                    llmSession = LlmSession(
-                        modelId = modelInfo.apiCode,
-                        sessionId = System.currentTimeMillis().toString(),
-                        configPath = modelPath,
-                        savedHistory = null
-                    )
-                    // 从Repository获取Context并加载模型
-                    val context = getContextFromRepository()
-                    try {
-                        llmSession?.load(context) // 加载模型
-                        debugLog(TAG) { "本地模型加载完成" }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "本地模型加载失败", e)
-                        throw e
-                    }
-                }
-            }
+            val session = ensureSession(modelInfo)
 
             // 构建提示词，将消息历史转换为字符串
             val prompt = buildPromptFromMessages(messages)
+            val fullResponse = StringBuilder()
             
             // 调用CPP LLM会话生成响应
-            val result = llmSession?.generate(prompt, emptyMap(), object : GenerateProgressListener {
+            val result = session.generate(prompt, emptyMap(), object : GenerateProgressListener {
                 override fun onProgress(progress: String?): Boolean {
-                    // 进度回调处理（可选）
+                    if (!progress.isNullOrEmpty() && progress != "<eop>") {
+                        fullResponse.append(progress)
+                    }
                     return false // 不中断生成
                 }
             })
 
             // 提取响应文本
-            return result?.get("response") as? String
-                ?: ModelErrorParser.normalizeUserError(repository.getContext().getString(R.string.error_no_content))
+            val responseText = (result["response"] as? String).orEmpty().ifBlank { fullResponse.toString() }
+            return responseText.ifBlank {
+                ModelErrorParser.normalizeUserError(repository.getContext().getString(R.string.error_no_content))
+            }
         } catch (e: Exception) {
             Log.e(TAG, "本地模型AI响应失败", e)
             return ModelErrorParser.parseThrowable(e)
@@ -88,38 +73,22 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
         debugScopeId: String?
     ): Flow<ChatEvent> = callbackFlow {
         val cancelRequested = AtomicBoolean(false)
-        // 在IO线程中初始化LLM会话（如果尚未初始化）
-        if (llmSession == null) {
-            withContext(Dispatchers.IO) {
-                val modelPath = modelInfo.modelPath.takeIf { it.isNotEmpty() } ?: getLocalModelPath(modelInfo.displayName)
-                debugLog(TAG) { "初始化本地模型（流式），名称=${modelInfo.displayName}, 路径=$modelPath" }
-                llmSession = LlmSession(
-                    modelId = modelInfo.apiCode,
-                    sessionId = System.currentTimeMillis().toString(),
-                    configPath = modelPath,
-                    savedHistory = null
-                )
-                // 从Repository获取Context并加载模型
-                val context = getContextFromRepository()
-                try {
-                    llmSession?.load(context)
-                    debugLog(TAG) { "本地模型（流式）加载完成" }
-                } catch (e: Exception) {
-                    Log.e(TAG, "本地模型（流式）加载失败", e)
-                    trySendBlocking(
-                        ChatEvent.Error(
-                            ModelErrorParser.normalizeUserError(
-                                repository.getContext().getString(
-                                    R.string.error_local_model_load_failed,
-                                    e.message.orEmpty()
-                                )
-                            )
+        val session = try {
+            ensureSession(modelInfo)
+        } catch (e: Exception) {
+            Log.e(TAG, "本地模型（流式）加载失败", e)
+            trySendBlocking(
+                ChatEvent.Error(
+                    ModelErrorParser.normalizeUserError(
+                        repository.getContext().getString(
+                            R.string.error_local_model_load_failed,
+                            e.message.orEmpty()
                         )
                     )
-                    close()
-                    return@withContext
-                }
-            }
+                )
+            )
+            close()
+            return@callbackFlow
         }
 
         val prompt = buildPromptFromMessages(messages)
@@ -171,7 +140,7 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
         val generationJob = launch {
             try {
                 withContext(Dispatchers.IO) {
-                    llmSession?.generate(prompt, emptyMap(), progressListener)
+                    session.generate(prompt, emptyMap(), progressListener)
                 }
                 if (!cancelRequested.get()) {
                     trySendBlocking(ChatEvent.Done)
@@ -200,6 +169,7 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
     fun release() {
         llmSession?.release()
         llmSession = null
+        activeModelKey = null
     }
     
     /**
@@ -224,5 +194,40 @@ class LocalModelApiService(private val repository: Repository) : ModelApiService
      */
     private fun getContextFromRepository(): Context {
         return repository.getContext()
+    }
+
+    private suspend fun ensureSession(modelInfo: ModelInfo): LlmSession {
+        return withContext(Dispatchers.IO) {
+            val modelPath = modelInfo.modelPath.takeIf { it.isNotEmpty() } ?: getLocalModelPath(modelInfo.displayName)
+            val modelKey = "${modelInfo.apiCode}|$modelPath"
+            if (llmSession != null && activeModelKey == modelKey) {
+                return@withContext llmSession!!
+            }
+
+            if (llmSession != null && activeModelKey != modelKey) {
+                debugLog(TAG) { "切换本地模型，释放旧会话: $activeModelKey -> $modelKey" }
+                llmSession?.release()
+                llmSession = null
+            }
+
+            debugLog(TAG) { "初始化本地模型，名称=${modelInfo.displayName}, 路径=$modelPath" }
+            val nextSession = LlmSession(
+                modelId = modelInfo.apiCode,
+                sessionId = System.currentTimeMillis().toString(),
+                configPath = modelPath,
+                savedHistory = null
+            )
+            try {
+                nextSession.load(getContextFromRepository())
+                llmSession = nextSession
+                activeModelKey = modelKey
+                debugLog(TAG) { "本地模型加载完成" }
+                nextSession
+            } catch (e: Exception) {
+                Log.e(TAG, "本地模型加载失败", e)
+                nextSession.release()
+                throw e
+            }
+        }
     }
 }

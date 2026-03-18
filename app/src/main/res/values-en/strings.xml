@@ -417,9 +417,9 @@ User message:
     <string name="settings_terms_subtitle">For the open-source version, refer to the LICENSE in the repo root</string>
     <string name="settings_privacy_title">Privacy Policy</string>
     <string name="settings_privacy_subtitle">This build does not enable analytics by default; third-party requests are only sent when configured by the user</string>
-    <string name="settings_local_model_not_built_in">This version does not include built-in local models.</string>
-    <string name="settings_local_model_import_hint">To enable local models, import a compatible model file manually in a later version.</string>
-    <string name="settings_local_model_wait_import_hint">To use local models, wait for import support in a later release.</string>
+    <string name="settings_local_model_not_built_in">No bundled local models were found in this build.</string>
+    <string name="settings_local_model_import_hint">To enable local models, place a compatible MNN model directory under app/src/main/assets/models and ensure the main file is named llm.mnn.</string>
+    <string name="settings_local_model_wait_import_hint">To use local models, add compatible MNN model assets under app/src/main/assets/models first.</string>
     <string name="settings_cloud_models">Cloud Models</string>
     <string name="settings_local_models">Local Models</string>
     <string name="settings_api_base_url">API Base URL</string>
