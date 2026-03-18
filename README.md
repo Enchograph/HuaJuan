@@ -160,7 +160,7 @@ Thanks to the open-source community for the work that makes projects like HuaJua
 ## 👥 Contributors
 
 <a href="https://github.com/Enchograph/HuaJuan/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Enchograph/HuaJuan" alt="Contributors" />
+  <img src="https://contrib.rocks/image?repo=Enchograph/HuaJuan" />
 </a>
 
 <br /><br />

@@ -157,7 +157,7 @@ cmake.dir=/path/to/cmake
 ## 👥 贡献者
 
 <a href="https://github.com/Enchograph/HuaJuan/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Enchograph/HuaJuan" alt="贡献者" />
+  <img src="https://contrib.rocks/image?repo=Enchograph/HuaJuan" />
 </a>
 
 <br /><br />
