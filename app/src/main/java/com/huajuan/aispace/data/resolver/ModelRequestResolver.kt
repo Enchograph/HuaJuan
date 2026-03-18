@@ -25,18 +25,19 @@ object ModelRequestResolver {
             modelList.find { it.displayName == selectedModelDisplayName }
                 ?: ModelInfo(selectedModelDisplayName, selectedModelDisplayName)
         } else {
-            ModelInfo(
-                displayName = selectedModelDisplayName,
-                apiCode = selectedModelDisplayName,
-                modelPath = repository.getLocalModelPath(selectedModelDisplayName)
-            )
+            repository.getLocalModelList().find { it.displayName == selectedModelDisplayName }
+                ?: ModelInfo(
+                    displayName = selectedModelDisplayName,
+                    apiCode = selectedModelDisplayName,
+                    modelPath = repository.getLocalModelPath(selectedModelDisplayName)
+                )
         }
 
         val providerType = repository.getProviderType(serviceProvider)
         val isImageGenerationService = ModelCapabilityResolver.matchesUsage(
             modelInfo = modelInfo,
             providerName = serviceProvider,
-            apiUrl = ModelDataProvider(repository).getApiUrlForProvider(serviceProvider),
+            apiUrl = if (useCloud) ModelDataProvider(repository).getApiUrlForProvider(serviceProvider) else null,
             usage = ModelUsage.ImageGeneration
         )
 

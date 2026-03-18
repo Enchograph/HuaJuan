@@ -152,7 +152,16 @@ class ImageGenerationApiService(
     }
 
     fun getSupport(modelInfo: ModelInfo): ImageGenerationSupport {
-        val serviceProvider = repository.getAssistantModelConfig(assistantId).serviceProvider
+        val config = repository.getAssistantModelConfig(assistantId)
+        if (!config.useCloudModel) {
+            return ImageGenerationSupport(
+                status = ImageGenerationCapabilityStatus.Unsupported,
+                canProbe = false,
+                message = repository.getContext().getString(R.string.error_image_generation_not_supported)
+            )
+        }
+
+        val serviceProvider = config.serviceProvider
         val probe = repository.getImageGenerationProbeRecord(serviceProvider, modelInfo.apiCode)
         if (probe?.status == ImageGenerationCapabilityStatus.Unsupported) {
             return ImageGenerationSupport(

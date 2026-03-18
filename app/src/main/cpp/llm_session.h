@@ -55,6 +55,7 @@ public:
 
     // Add getter method for underlying Llm object for benchmarking purposes
     Llm* getLlm() const { return llm_; }
+    std::string getLastResponse() const;
     
     // Platform-independent benchmark result structure
     struct BenchmarkResult {
@@ -131,8 +132,6 @@ private:
                                int iteration, int nPrompt, int nGenerate,
                                BenchmarkResult& result, const BenchmarkCallback& callback,
                                bool isKvCache);
-    std::string getLastResponse() const;
-
     std::string response_string_for_debug{};
     std::string model_path_;
     std::vector<PromptItem> history_{};

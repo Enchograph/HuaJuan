@@ -87,8 +87,8 @@
     <string name="settings_tools_search_subtitle">Providers, compression, blacklist</string>
     <string name="settings_tools_mcp_subtitle">In development</string>
     <string name="language_system">Follow system</string>
-    <string name="language_zh_hans">Simplified Chinese</string>
-    <string name="language_ja">Japanese</string>
+    <string name="language_zh_hans">汉语</string>
+    <string name="language_ja">日本語</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_system">System</string>
@@ -591,7 +591,7 @@ User message:
     <string name="image_generation_system_prompt_fallback">You are a professional image prompting assistant. Turn user requests into clear and actionable image generation instructions.</string>
     <string name="settings_parameter_config">Parameter Config</string>
     <string name="settings_basic_info">Basic Info</string>
-    <string name="settings_builtin_providers">Built-in Providers</string>
+    <string name="settings_builtin_providers">Built-in</string>
     <string name="settings_empty_builtin_providers">No built-in providers</string>
     <string name="settings_builtin_label">Built-in</string>
     <string name="settings_user_added_label">User Added</string>

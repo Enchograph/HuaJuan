@@ -18,7 +18,7 @@ object BuiltInServiceProviders {
             id = SiliconFlow,
             displayNameRes = R.string.provider_siliconflow,
             baseUrl = "https://api.siliconflow.cn",
-            consoleUrl = "https://cloud.siliconflow.cn",
+            consoleUrl = "https://cloud.siliconflow.cn/me/models",
             providerType = ProviderType.OpenAI,
             models = listOf(
                 ModelInfo("DeepSeek-V3.2", "deepseek-ai/DeepSeek-V3.2", capabilities = setOf(ModelCapability.Chat)),
@@ -35,29 +35,11 @@ object BuiltInServiceProviders {
                 ModelInfo("Qwen-Image-Edit-2509", "Qwen/Qwen-Image-Edit-2509", capabilities = setOf(ModelCapability.ImageGeneration))
             )
         ),
-        Volcengine to ServiceProviderInfo(
-            id = Volcengine,
-            displayNameRes = R.string.provider_volcengine,
-            baseUrl = "https://ark.cn-beijing.volces.com/api/v3",
-            consoleUrl = "https://ark.cn-beijing.volces.com",
-            providerType = ProviderType.OpenAI,
-            models = listOf(
-                ModelInfo("DeepSeek-V3.1", "DeepSeek-V3.1", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("Kimi-K2", "kimi-k2-thinking-251104", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("DeepSeek-R1", "DeepSeek-R1", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("DeepSeek-V3", "DeepSeek-V3", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("Doubao-1.5-pro", "Doubao-1.5-pro-32k", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("Doubao-1.5-lite", "Doubao-1.5-lite-32k", capabilities = setOf(ModelCapability.Chat)),
-                ModelInfo("Seedream 4.5", "ep-20251224183505-qkhjf", capabilities = setOf(ModelCapability.ImageGeneration)),
-                ModelInfo("Seedream 4.0", "doubao-seedream-4-0-250828", capabilities = setOf(ModelCapability.ImageGeneration)),
-                ModelInfo("Seedream 3.0", "Doubao-Seedream-3.0-t2i", capabilities = setOf(ModelCapability.ImageGeneration))
-            )
-        ),
         SoruxGpt to ServiceProviderInfo(
             id = SoruxGpt,
             displayNameRes = R.string.provider_soruxgpt,
             baseUrl = "https://ai.soruxgpt.com",
-            consoleUrl = "https://www.soruxgpt.com",
+            consoleUrl = "https://ai.soruxgpt.com/",
             providerType = ProviderType.OpenAI,
             models = listOf(
                 ModelInfo("GPT-3.5-Turbo", "gpt-3.5-turbo", capabilities = setOf(ModelCapability.Chat)),

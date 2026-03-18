@@ -15,7 +15,8 @@ object ModelCapabilityResolver {
         } ?: return true
         val capabilities = modelInfo.capabilities
         if (usage == ModelUsage.ImageGeneration && capabilities.isEmpty()) {
-            return true
+            // Only cloud models without explicit metadata are probeable for image generation.
+            return !apiUrl.isNullOrBlank()
         }
         val resolvedCapabilities = capabilities.ifEmpty { setOf(ModelCapability.Chat) }
         return resolvedCapabilities.contains(capability)

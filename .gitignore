@@ -10,6 +10,7 @@ local.properties
 !.env.example
 secrets/
 .gradle-user/
+.gradle-user-home/
 
 # Android / Gradle / Kotlin build outputs
 .gradle/
@@ -24,6 +25,7 @@ outputs/
 *.aab
 
 # Signing keys and certificates
+keystore.properties
 *.jks
 *.keystore
 *.p12

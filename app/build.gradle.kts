@@ -5,9 +5,24 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+import java.util.Properties
+import java.io.File
+
 val enableNativeBuild = (findProperty("enableNativeBuild") as String?)
     ?.toBooleanStrictOrNull()
     ?: false
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use(localProperties::load)
+}
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.inputStream().use(keystoreProperties::load)
+}
 
 android {
     namespace = "com.huajuan.aispace"
@@ -41,8 +56,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                val storeFilePath = keystoreProperties.getProperty("storeFile")
+                    ?: throw GradleException("keystore.properties 缺少 storeFile")
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -62,6 +92,7 @@ android {
         // 启用viewBinding以支持原生库调用
         viewBinding = true
     }
+    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("generated/jniLibs/main"))
     
     if (enableNativeBuild) {
         // 配置外部原生构建
@@ -75,6 +106,34 @@ android {
 }
 
 val prebuiltMnnLlmSo = layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libmnnllmapp.so")
+val generatedJniLibsDir = layout.buildDirectory.dir("generated/jniLibs/main/arm64-v8a")
+val syncNativeRuntimeLibs by tasks.registering {
+    group = "build setup"
+    description = "Copy libc++_shared.so into generated jniLibs so prebuilt native libraries can load at runtime."
+    val sdkDir = localProperties.getProperty("sdk.dir")
+        ?.replace("\\:", ":")
+        ?.replace('\\', File.separatorChar)
+        ?.let(::file)
+    val ndkRoot = sdkDir?.resolve("ndk")
+    val runtimeCandidates = ndkRoot
+        ?.listFiles()
+        .orEmpty()
+        .sortedByDescending { it.name }
+        .map { ndkDir ->
+            ndkDir.resolve("toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so")
+        }
+    val runtimeLib = runtimeCandidates.firstOrNull { it.exists() }
+    inputs.files(runtimeCandidates)
+    outputs.file(generatedJniLibsDir.map { it.file("libc++_shared.so") })
+    doLast {
+        val source = runtimeLib ?: throw GradleException(
+            "未找到 libc++_shared.so。请确认 local.properties 中的 sdk.dir 指向有效 Android SDK，且已安装 NDK。"
+        )
+        val outputDir = generatedJniLibsDir.get().asFile
+        outputDir.mkdirs()
+        source.copyTo(outputDir.resolve("libc++_shared.so"), overwrite = true)
+    }
+}
 val verifyPrebuiltNativeLib by tasks.registering {
     group = "verification"
     description = "Verify required prebuilt native libraries exist when native build is disabled."
@@ -90,7 +149,12 @@ val verifyPrebuiltNativeLib by tasks.registering {
 
 if (!enableNativeBuild) {
     tasks.named("preBuild").configure {
+        dependsOn(syncNativeRuntimeLibs)
         dependsOn(verifyPrebuiltNativeLib)
+    }
+} else {
+    tasks.named("preBuild").configure {
+        dependsOn(syncNativeRuntimeLibs)
     }
 }
 
