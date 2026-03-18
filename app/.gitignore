@@ -1,3 +1,5 @@
 /build
-/main/assets/models/
-/src/main/assets/models/
+/main/assets/models/*
+!/main/assets/models/README.md
+/src/main/assets/models/*
+!/src/main/assets/models/README.md
