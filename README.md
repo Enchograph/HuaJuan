@@ -167,7 +167,7 @@ Thanks to the open-source community for the work that makes projects like HuaJua
 
 <!-- Links & Images -->
 
-[deepwiki-shield]: https://img.shields.io/badge/Deepwiki-Enchograph-0088CC
+[deepwiki-shield]: https://img.shields.io/badge/Deepwiki-HuaJuan-0088CC
 [deepwiki-link]: https://deepwiki.com/Enchograph/HuaJuan
 
 [github-release-shield]: https://img.shields.io/github/v/release/Enchograph/HuaJuan
