@@ -1,0 +1,8 @@
+title = "HuaJuan Secret Scan Baseline"
+
+[allowlist]
+description = "Allow known false-positive patterns"
+paths = [
+  '''docs/assets/''',
+  '''docs/参考/'''
+]

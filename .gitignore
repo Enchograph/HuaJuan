@@ -1,0 +1,31 @@
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Local machine configuration
+local.properties
+.env
+.env.*
+!.env.example
+secrets/
+.gradle-user/
+
+# Android / Gradle / Kotlin build outputs
+.gradle/
+.kotlin/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+outputs/
+*.apk
+*.aab
+
+# Signing keys and certificates
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key

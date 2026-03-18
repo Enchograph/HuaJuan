@@ -1,0 +1,8 @@
+# Each non-empty line is a PowerShell/.NET regex matched against a full `rg -n` output line.
+# Use this for intentional non-user-facing literals: logs, comments, compatibility aliases, etc.
+
+network\\ApiService\.kt:12:.*"text".*"image_url"
+network\\LlmSession\.kt:.*[一-龥ぁ-んァ-ヶ].*
+data\\service\\LocalModelApiService\.kt:.*(debugLog|Log\.e).*[一-龥ぁ-んァ-ヶ].*
+data\\service\\ModelManager\.kt:.*Log\.e.*[一-龥ぁ-んァ-ヶ].*
+data\\model\\ModelData\.kt:.*[一-龥ぁ-んァ-ヶ].*
