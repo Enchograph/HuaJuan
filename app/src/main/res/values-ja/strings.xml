@@ -239,6 +239,11 @@
     <string name="chat_only_text_file_supported">テキストファイルのみ対応しています</string>
     <string name="chat_ai_reply_failed">AI返信の取得に失敗しました: %1$s</string>
     <string name="chat_reply_failed">返信の取得に失敗しました: %1$s</string>
+    <string name="chat_title_generation_prompt">以下のユーザー最初のメッセージをもとに、短い会話タイトルを生成してください。
+要件: 12文字以内、タイトル本文のみを返し、引用符や余計な説明は付けないでください。
+
+ユーザーメッセージ:
+%1$s</string>
     <string name="chat_only_affects_current_conversation">現在の会話にのみ影響します。</string>
     <string name="chat_requires_api_key">APIキーが必要です</string>
     <string name="chat_mcp_global_config_incomplete">MCP の全体設定が未完了です。設定画面でツールを有効化し、サービスを追加してください。</string>
@@ -571,7 +576,9 @@
     <string name="model_picker_search_model">モデルを検索</string>
     <string name="model_picker_local">ローカル</string>
     <string name="model_picker_cloud">クラウド</string>
-    <string name="translation_system_prompt_fallback">You are a professional translation engine. Translate according to user input and the target language while keeping meaning accurate and tone natural.</string>
+    <string name="translation_system_prompt_fallback">あなたはプロの翻訳エンジンです。ユーザー入力と目標言語に従って翻訳し、意味の正確さと自然な表現を保ってください。</string>
+    <string name="translation_prompt_template">あなたはプロの翻訳エンジンです。テキストを%1$sから%2$sへ翻訳してください。要件: 正確で自然、元のトーンを維持すること。既定の言語設定は%3$sです。</string>
+    <string name="translation_prompt_no_reasoning_suffix">最終的な翻訳結果だけを出力し、思考過程や中間推論は出力しないでください。</string>
     <string name="translation_language_auto_detect">自動検出</string>
     <string name="translation_language_auto_target">自動</string>
     <string name="translation_language_chinese">中国語</string>
@@ -579,7 +586,7 @@
     <string name="translation_language_japanese">日本語</string>
     <string name="translation_language_korean">韓国語</string>
     <string name="translation_language_french">フランス語</string>
-    <string name="image_generation_system_prompt_fallback">You are a professional image prompting assistant. Turn user requests into clear and actionable image generation instructions.</string>
+    <string name="image_generation_system_prompt_fallback">あなたは画像生成向けのプロンプト作成を支援する専門アシスタントです。ユーザーの要望を、明確で実行しやすい画像生成指示へ変換してください。</string>
     <string name="settings_parameter_config">パラメーター設定</string>
     <string name="settings_basic_info">基本情報</string>
     <string name="settings_builtin_providers">内蔵プロバイダー</string>

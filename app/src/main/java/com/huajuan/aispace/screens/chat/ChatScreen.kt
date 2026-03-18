@@ -1056,13 +1056,10 @@ fun ChatScreen(
                                     if (existingTitle.isNotBlank() && existingTitle != defaultTitle) {
                                         return@launch
                                     }
-                                    val prompt = """
-                                        请根据下面这段用户的第一条消息生成一个简短的对话标题。
-                                        要求：不超过12个字，只返回标题文字，不要加引号或其他说明。
-
-                                        用户消息：
-                                        $text
-                                    """.trimIndent()
+                                    val prompt = context.getString(
+                                        R.string.chat_title_generation_prompt,
+                                        text
+                                    )
 
                                     val titleResult = repository.getAIResponse(
                                         messages = listOf(

@@ -270,6 +270,7 @@ fun TranslationScreen(
                         repository.updateLastMessage(conversationId, sourceText)
 
                         val systemPrompt = buildTranslationPrompt(
+                            context = context,
                             sourceLang = sourceLang,
                             targetLang = resolvedTarget,
                             defaultLang = defaultLanguage,
@@ -649,18 +650,24 @@ private fun isLikelyLanguage(text: String, target: TranslationLanguage): Boolean
 }
 
 private fun buildTranslationPrompt(
+    context: android.content.Context,
     sourceLang: TranslationLanguage,
     targetLang: TranslationLanguage,
     defaultLang: TranslationLanguage,
     reasoningEnabled: Boolean
 ): String {
     return buildString {
-        append("You are a professional translation engine. Translate the text ")
-        append("from ${sourceLang.promptLabel()} to ${targetLang.promptLabel()}. ")
-        append("Requirements: accurate, natural, and preserve tone. ")
-        append("Default language preference is ${defaultLang.promptLabel()}.")
+        append(
+            context.getString(
+                R.string.translation_prompt_template,
+                sourceLang.promptLabel(context),
+                targetLang.promptLabel(context),
+                defaultLang.promptLabel(context)
+            )
+        )
         if (!reasoningEnabled) {
-            append(" Output only the final translation. Do not reveal chain-of-thought or intermediate reasoning.")
+            append(' ')
+            append(context.getString(R.string.translation_prompt_no_reasoning_suffix))
         }
     }
 }
@@ -716,14 +723,14 @@ private sealed class TranslationLanguage {
         is Custom -> value
     }
 
-    fun promptLabel(): String = when (this) {
-        AutoDetect -> "auto-detect"
-        AutoTarget -> "auto"
-        Chinese -> "Chinese"
-        English -> "English"
-        Japanese -> "Japanese"
-        Korean -> "Korean"
-        French -> "French"
+    fun promptLabel(context: android.content.Context): String = when (this) {
+        AutoDetect -> context.getString(R.string.translation_language_auto_detect)
+        AutoTarget -> context.getString(R.string.translation_language_auto_target)
+        Chinese -> context.getString(R.string.translation_language_chinese)
+        English -> context.getString(R.string.translation_language_english)
+        Japanese -> context.getString(R.string.translation_language_japanese)
+        Korean -> context.getString(R.string.translation_language_korean)
+        French -> context.getString(R.string.translation_language_french)
         is Custom -> value
     }
 

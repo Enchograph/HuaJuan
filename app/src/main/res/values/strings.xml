@@ -244,6 +244,11 @@
     <string name="chat_only_text_file_supported">仅支持文本类文件上传</string>
     <string name="chat_ai_reply_failed">获取AI回复失败: %1$s</string>
     <string name="chat_reply_failed">获取回复失败: %1$s</string>
+    <string name="chat_title_generation_prompt">请根据下面这段用户的第一条消息生成一个简短的对话标题。
+要求：不超过12个字，只返回标题文字，不要加引号或其他说明。
+
+用户消息：
+%1$s</string>
     <string name="chat_only_affects_current_conversation">只影响当前对话。</string>
     <string name="chat_requires_api_key">需要API密钥</string>
     <string name="chat_mcp_global_config_incomplete">当前未完成 MCP 全局配置，请到设置页先启用工具并添加服务。</string>
@@ -612,7 +617,9 @@
     <string name="model_picker_search_model">搜索模型</string>
     <string name="model_picker_local">本地</string>
     <string name="model_picker_cloud">云端</string>
-    <string name="translation_system_prompt_fallback">You are a professional translation engine. Translate according to user input and the target language while keeping meaning accurate and tone natural.</string>
+    <string name="translation_system_prompt_fallback">你是一台专业翻译引擎。请根据用户输入和目标语言进行翻译，保持语义准确、表达自然。</string>
+    <string name="translation_prompt_template">你是一台专业翻译引擎。请将文本从%1$s翻译成%2$s。要求：准确、自然，并保留原有语气。默认语言偏好是%3$s。</string>
+    <string name="translation_prompt_no_reasoning_suffix">只输出最终译文，不要暴露思维链或中间推理。</string>
     <string name="translation_language_auto_detect">自动检测</string>
     <string name="translation_language_auto_target">自动</string>
     <string name="translation_language_chinese">中文</string>
@@ -620,7 +627,7 @@
     <string name="translation_language_japanese">日文</string>
     <string name="translation_language_korean">韩文</string>
     <string name="translation_language_french">法文</string>
-    <string name="image_generation_system_prompt_fallback">You are a professional image prompting assistant. Turn user requests into clear and actionable image generation instructions.</string>
+    <string name="image_generation_system_prompt_fallback">你是一名专业的图像提示词助手。请把用户需求转成清晰、可执行的图像生成指令。</string>
     <string name="settings_parameter_config">参数配置</string>
     <string name="settings_basic_info">基础信息</string>
     <string name="settings_builtin_providers">内置厂商</string>

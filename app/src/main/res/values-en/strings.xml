@@ -241,6 +241,11 @@
     <string name="chat_only_text_file_supported">Only text files are supported</string>
     <string name="chat_ai_reply_failed">Failed to get AI reply: %1$s</string>
     <string name="chat_reply_failed">Failed to get reply: %1$s</string>
+    <string name="chat_title_generation_prompt">Generate a short conversation title based on the first user message below.
+Requirements: no more than 12 characters, return only the title text, and do not add quotes or any extra explanation.
+
+User message:
+%1$s</string>
     <string name="chat_only_affects_current_conversation">Only affects the current conversation.</string>
     <string name="chat_requires_api_key">API key required</string>
     <string name="chat_mcp_global_config_incomplete">Global MCP is not fully configured yet. Enable tools and add services in Settings first.</string>
@@ -574,6 +579,8 @@
     <string name="model_picker_local">Local</string>
     <string name="model_picker_cloud">Cloud</string>
     <string name="translation_system_prompt_fallback">You are a professional translation engine. Translate according to user input and the target language while keeping meaning accurate and tone natural.</string>
+    <string name="translation_prompt_template">You are a professional translation engine. Translate the text from %1$s to %2$s. Requirements: accurate, natural, and preserve tone. Default language preference is %3$s.</string>
+    <string name="translation_prompt_no_reasoning_suffix">Output only the final translation. Do not reveal chain-of-thought or intermediate reasoning.</string>
     <string name="translation_language_auto_detect">Auto Detect</string>
     <string name="translation_language_auto_target">Auto</string>
     <string name="translation_language_chinese">Chinese</string>
