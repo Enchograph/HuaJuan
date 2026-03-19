@@ -42,13 +42,16 @@
 
 ## 🖼️ 界面预览
 
-| New Chat | Docker | Translate |
-|:--------:|:------:|:---------:|
-| ![New Chat](../../docs/assets/images/New%20Chat.jpg) | ![Docker](../../docs/assets/images/Docker.jpg) | ![Translate](../../docs/assets/images/Translate.jpg) |
-
-| Knowledge Base | Image Generating | Documents |
-|:--------------:|:----------------:|:---------:|
-| ![Knowledge Base](../../docs/assets/images/Knowledge%20Base.jpg) | ![Image Generating](../../docs/assets/images/Image%20Genarating.jpg) | ![Documents](../../docs/assets/images/documents.jpg) |
+<p align="center">
+  <img src="../../docs/assets/images/New%20Chat.jpg" width="32%" alt="New Chat" />
+  <img src="../../docs/assets/images/Docker.jpg" width="32%" alt="Docker" />
+  <img src="../../docs/assets/images/Translate.jpg" width="32%" alt="Translate" />
+</p>
+<p align="center">
+  <img src="../../docs/assets/images/Knowledge%20Base.jpg" width="32%" alt="Knowledge Base" />
+  <img src="../../docs/assets/images/Image%20Genarating.jpg" width="32%" alt="Image Generating" />
+  <img src="../../docs/assets/images/documents.jpg" width="32%" alt="Documents" />
+</p>
 
 ## 🌟 功能特性
 
@@ -164,7 +167,7 @@ cmake.dir=/path/to/cmake
 
 <!-- Links & Images -->
 
-[deepwiki-shield]: https://img.shields.io/badge/Deepwiki-Enchograph-0088CC
+[deepwiki-shield]: https://img.shields.io/badge/Deepwiki-HuaJuan-0088CC
 [deepwiki-link]: https://deepwiki.com/Enchograph/HuaJuan
 
 [github-release-shield]: https://img.shields.io/github/v/release/Enchograph/HuaJuan
@@ -174,5 +177,5 @@ cmake.dir=/path/to/cmake
 
 [license-shield]: https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative
 [license-link]: ../../LICENSE
-[sponsor-shield]: https://img.shields.io/badge/赞助支持-FF6699.svg?logo=githubsponsors&logoColor=white
+[sponsor-shield]: https://img.shields.io/badge/赞助支持 -FF6699.svg?logo=githubsponsors&logoColor=white
 [sponsor-link]: ../../docs/assets/images/sponsor.png
