@@ -85,7 +85,6 @@ Current and planned directions for HuaJuan:
 
 - Improvement of interaction logic
 - Performance optimization
-- **Backend integration of MCP features**
 - OCR (Optical Character Recognition), planned around Deepseek OCR
 - TTS (Text-to-Speech) interaction, planned around MNN TTS
 - Development of a local model market
